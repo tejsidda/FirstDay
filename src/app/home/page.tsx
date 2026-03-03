@@ -30,7 +30,7 @@ export default function Home() {
         />
         {/* Watchlist rail: change title/subtitle; movies= is the watchlist data. */}
         <PosterRail
-          title="Any Movies You Wanna Watch?"
+          title="Any Movies You Wanna Watch now?"
           subtitle="Add to your watchlist? Check it out!"
           movies={WATCHLIST}
         />
