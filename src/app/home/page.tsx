@@ -23,7 +23,7 @@ export default function Home() {
       <div className="pb-32">
         {/* "Recently watched" rail: change title/subtitle for copy; movies= controls the list. */}
         <PosterRail
-          title="The Films I have watched"
+          title="The Films I have watched till now"
           subtitle="Watched any new movies lately? Add them here!"
           movies={RECENTLY_WATCHED}
           showRating
