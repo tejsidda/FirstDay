@@ -4,6 +4,8 @@ export type Movie = {
   year: number
   language: string
   poster: string
-  /** Optional 1–5 star rating for watched films */
+  backdrop?: string
   rating?: number
+  reviewHeadline?: string
+  reviewBody?: string
 }

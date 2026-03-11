@@ -9,11 +9,15 @@ export default function PosterRail({
   subtitle,
   movies,
   showRating,
+  onMarkWatched,
+  onRemove,
 }: {
   title: string
   subtitle?: string
   movies: Movie[]
   showRating?: boolean
+  onMarkWatched?: (movie: Movie, rating: number) => void
+  onRemove?: (movie: Movie) => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
@@ -47,14 +51,47 @@ export default function PosterRail({
   }
 
   return (
-    <section className="relative mt-16 px-8">
-      <div className="mb-1">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-white" style={{ fontWeight: 600 }}>
-          {title}
-        </h2>
-        {subtitle != null && (
-          <p className="mt-0.5 text-sm text-white/35">{subtitle}</p>
-        )}
+    <section className="relative px-12">
+      <div className="mb-4 flex items-start justify-between gap-6">
+        <div>
+          <h2
+            style={{ 
+              fontSize: 20, 
+              fontWeight: 600, 
+              color: "rgba(255,255,255,0.85)",
+              fontFamily: "Georgia, serif",
+              position: "relative",
+              zIndex: 5,
+            }}
+          >
+            {title}
+          </h2>
+          {subtitle && (
+            <p
+              style={{
+                fontSize: 13, 
+                color: "rgba(255,255,255,0.35)", 
+                fontStyle: "italic",
+                marginTop: 4,
+                fontFamily: "Georgia, serif",
+                position: "relative",
+                zIndex: 5,
+              }}
+            >
+              {subtitle}
+            </p>
+          )}
+        </div>
+        <span
+          style={{
+            fontSize: 12, 
+            color: "rgba(255,255,255,0.3)",
+            position: "relative",
+            zIndex: 5,
+          }}
+        >
+          See all ›
+        </span>
       </div>
 
       <div className="relative">
@@ -62,7 +99,8 @@ export default function PosterRail({
           <button
             type="button"
             onClick={() => scroll("left")}
-            className="absolute left-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/[0.08] text-white shadow-lg transition-all duration-200 hover:bg-white/12 hover:scale-110"
+            className="absolute top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white shadow-lg transition-all duration-200 hover:bg-white/15"
+            style={{ left: -18 }}
             aria-label="Scroll left"
           >
             <span className="text-lg leading-none">‹</span>
@@ -72,7 +110,8 @@ export default function PosterRail({
           <button
             type="button"
             onClick={() => scroll("right")}
-            className="absolute right-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/[0.08] text-white shadow-lg transition-all duration-200 hover:bg-white/12 hover:scale-110"
+            className="absolute top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white shadow-lg transition-all duration-200 hover:bg-white/15"
+            style={{ right: -18 }}
             aria-label="Scroll right"
           >
             <span className="text-lg leading-none">›</span>
@@ -81,11 +120,21 @@ export default function PosterRail({
 
         <div
           ref={scrollRef}
-          className="flex gap-4 overflow-x-auto scrollbar-hide pb-2"
+          className="flex gap-4 overflow-x-auto scrollbar-hide pb-4"
+          style={{ paddingRight: 16 }}
         >
-          {movies.map((m) => (
-            <div key={m.id} className="min-w-[155px] max-w-[155px] shrink-0">
-              <MoviePosterCard movie={m} size="large" showRating={showRating} />
+          {movies.map((m, i) => (
+            <div
+              key={`${m.id}-${i}`}
+              className="min-w-[160px] max-w-[160px] shrink-0"
+            >
+              <MoviePosterCard
+                movie={m}
+                size="large"
+                showRating={showRating}
+                onMarkWatched={onMarkWatched}
+                onRemove={onRemove}
+              />
             </div>
           ))}
         </div>
