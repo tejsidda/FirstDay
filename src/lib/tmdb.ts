@@ -133,3 +133,66 @@ export async function getMovieImages(tmdbId: string) {
       .map((img: any) => `${IMG}/w500${img.file_path}`),
   }
 }
+
+export async function getPersonFilmography(personName: string): Promise<{ id: number; title: string; year: number }[]> {
+  const searchRes = await fetch(
+    `${BASE}/search/person?query=${encodeURIComponent(personName)}&language=en-US&page=1`,
+    {
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+      },
+    }
+  )
+  const searchData = await searchRes.json()
+  if (!searchData.results || searchData.results.length === 0) return []
+
+  const personId = searchData.results[0].id
+
+  const creditsRes = await fetch(
+    `${BASE}/person/${personId}/movie_credits?language=en-US`,
+    {
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+      },
+    }
+  )
+  const creditsData = await creditsRes.json()
+
+  const castFilms = (creditsData.cast || [])
+    .filter((m: any) => m.release_date)
+    .sort((a: any, b: any) => b.popularity - a.popularity)
+    .slice(0, 8)
+    .map((m: any) => ({
+      id: m.id,
+      title: m.title,
+      year: m.release_date ? parseInt(m.release_date.split("-")[0]) : 0,
+    }))
+
+  const crewFilms = (creditsData.crew || [])
+    .filter((m: any) => m.job === "Director" && m.release_date)
+    .sort((a: any, b: any) => b.popularity - a.popularity)
+    .slice(0, 8)
+    .map((m: any) => ({
+      id: m.id,
+      title: m.title,
+      year: m.release_date ? parseInt(m.release_date.split("-")[0]) : 0,
+    }))
+
+  return castFilms.length >= crewFilms.length ? castFilms : crewFilms
+}
+
+export async function getMovieKeywords(tmdbId: string): Promise<string[]> {
+  const res = await fetch(
+    `${BASE}/movie/${tmdbId}/keywords`,
+    {
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        "Content-Type": "application/json",
+      },
+    }
+  )
+  const data = await res.json()
+  return (data.keywords || []).map((k: any) => k.name)
+}

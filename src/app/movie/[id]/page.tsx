@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
-import { getMovieCredits, getMovieImages, posterURL } from "@/lib/tmdb"
+import { getMovieCredits, getMovieImages, getPersonFilmography, getMovieKeywords, posterURL } from "@/lib/tmdb"
 import { updateReview } from "@/lib/db"
 
 const LANG_MAP: Record<string, string> = {
@@ -54,6 +54,10 @@ export default function MovieDetailPage() {
   const [body, setBody] = useState("")
   const [editingReview, setEditingReview] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [selectedPerson, setSelectedPerson] = useState<string | null>(null)
+  const [filmography, setFilmography] = useState<{ id: number; title: string; year: number }[]>([])
+  const [loadingFilmography, setLoadingFilmography] = useState(false)
+  const [keywords, setKeywords] = useState<string[]>([])
   const [heroOpacity, setHeroOpacity] = useState(1)
   const [heroScale, setHeroScale] = useState(1)
   const [heroMotion, setHeroMotion] = useState({ x: 0, y: 0, active: false })
@@ -76,11 +80,13 @@ export default function MovieDetailPage() {
       const details = await detailsRes.json()
       setMovie(details)
 
-      const [creds, imgs] = await Promise.all([
+      const [creds, imgs, kws] = await Promise.all([
         getMovieCredits(tmdbId),
         getMovieImages(tmdbId),
+        getMovieKeywords(tmdbId),
       ])
       setCredits(creds)
+      setKeywords(kws)
 
       const uniqueBackdrops = imgs.backdrops.filter(
         (url: string, index: number, arr: string[]) => arr.indexOf(url) === index
@@ -159,6 +165,19 @@ export default function MovieDetailPage() {
     setSaving(false)
   }
 
+  const handlePersonClick = async (name: string) => {
+    if (selectedPerson === name) {
+      setSelectedPerson(null)
+      setFilmography([])
+      return
+    }
+    setSelectedPerson(name)
+    setLoadingFilmography(true)
+    const films = await getPersonFilmography(name)
+    setFilmography(films)
+    setLoadingFilmography(false)
+  }
+
   const displayHeadline =
     (dbRecord?.review_headline as string | undefined) ||
     defaultHeadlineForRating(dbRecord?.rating, isWatchlisted)
@@ -216,6 +235,9 @@ export default function MovieDetailPage() {
         scrollBehavior: "smooth",
       }}
     >
+      <style>{`
+        .person-btn:hover { color: rgba(255,255,255,0.65) !important; }
+      `}</style>
       <div style={{ position: "relative" }}>
       {/* Hero — final structured backdrop grid */}
       <section
@@ -454,9 +476,25 @@ export default function MovieDetailPage() {
             <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', fontSize: 9, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.25)" }}>
               Director
             </div>
-            <div style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 14, fontWeight: 400, color: "rgba(255,255,255,0.7)", marginTop: 8 }}>
+            <button
+              className="person-btn"
+              onClick={() => handlePersonClick(credits.director)}
+              style={{
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: 14,
+                fontWeight: 400,
+                color: selectedPerson === credits.director ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.45)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                marginTop: 8,
+                transition: 'color 0.2s ease',
+                display: 'block',
+              }}
+            >
               {credits.director || "Unknown"}
-            </div>
+            </button>
           </div>
           <div className="min-w-[140px] flex-1">
             <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', fontSize: 9, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.25)" }}>
@@ -674,63 +712,156 @@ export default function MovieDetailPage() {
         )}
       </div>
 
-      {/* Section 4: Poster + Cast */}
-      <div
-        className="flex flex-col md:flex-row"
-        style={{
+      {/* Keywords */}
+      {keywords.length > 0 && (
+        <div style={{
           maxWidth: 900,
-          marginLeft: "auto",
-          marginRight: "auto",
-          padding: "0 48px",
-          marginTop: 48,
-          gap: 40,
-          alignItems: "flex-start",
-        }}
-      >
+          marginLeft: 'auto',
+          marginRight: 'auto',
+          paddingLeft: 48,
+          paddingRight: 48,
+          marginTop: 40,
+        }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 10px' }}>
+            {keywords.slice(0, 12).map((keyword, i) => (
+              <span key={i} style={{
+                fontFamily: 'Georgia, serif',
+                fontSize: 11,
+                fontStyle: 'italic',
+                color: `rgba(255,255,255,${0.15 + (i % 3) * 0.05})`,
+                letterSpacing: '0.02em',
+              }}>
+                {keyword}{i < Math.min(keywords.length, 12) - 1 ? ' ·' : ''}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Section 4: Poster + Cast + Filmography */}
+      <div style={{
+        maxWidth: 1100,
+        marginLeft: 'auto',
+        marginRight: 'auto',
+        paddingLeft: 48,
+        paddingRight: 48,
+        marginTop: 48,
+        display: 'flex',
+        gap: 40,
+        alignItems: 'flex-start',
+      }}>
+        {/* Poster */}
         <div style={{ flexShrink: 0 }}>
           {posterSrc ? (
             <img
               src={posterSrc}
               alt={movie?.title || "Poster"}
-              style={{
-                width: 220,
-                maxWidth: "100%",
-                borderRadius: 6,
-                boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-              }}
+              style={{ width: 220, borderRadius: 6, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
             />
           ) : null}
         </div>
 
-        <div>
-          <div
-            style={{
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-              fontSize: 9,
-              fontWeight: 500,
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              color: "rgba(255,255,255,0.25)",
-              marginBottom: 16,
-            }}
-          >
+        {/* Cast */}
+        <div style={{ minWidth: 180 }}>
+          <div style={{
+            fontFamily: '-apple-system, sans-serif',
+            fontSize: 9,
+            fontWeight: 500,
+            letterSpacing: '0.2em',
+            textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.25)',
+            marginBottom: 12,
+          }}>
             Cast
           </div>
-          {(credits.cast || []).map((name) => (
-            <div
-              key={name}
+
+          {credits.cast.map((name: string, i: number) => (
+            <button
+              key={i}
+              className="person-btn"
+              onClick={() => handlePersonClick(name)}
               style={{
-                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontFamily: 'Georgia, serif',
                 fontSize: 14,
                 fontWeight: 400,
-                color: "rgba(255,255,255,0.45)",
+                color: selectedPerson === name ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.45)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                transition: 'color 0.2s ease',
+                display: 'block',
                 lineHeight: 2.2,
               }}
             >
               {name}
-            </div>
+            </button>
           ))}
         </div>
+
+        {/* Filmography panel */}
+        {selectedPerson && (
+          <div style={{
+            flex: 1,
+            paddingLeft: 32,
+            borderLeft: '1px solid rgba(255,255,255,0.06)',
+            minHeight: 200,
+            opacity: 1,
+            transition: 'opacity 0.3s ease',
+          }}>
+            <div style={{
+              fontFamily: '-apple-system, sans-serif',
+              fontSize: 9,
+              fontWeight: 500,
+              letterSpacing: '0.2em',
+              textTransform: 'uppercase',
+              color: 'rgba(255,255,255,0.25)',
+              marginBottom: 4,
+            }}>
+              Also by
+            </div>
+            <div style={{
+              fontFamily: 'Georgia, serif',
+              fontSize: 16,
+              fontWeight: 400,
+              fontStyle: 'italic',
+              color: 'rgba(255,255,255,0.7)',
+              marginBottom: 20,
+            }}>
+              {selectedPerson}
+            </div>
+
+            {loadingFilmography ? (
+              <div style={{
+                fontFamily: 'Georgia, serif',
+                fontSize: 12,
+                fontStyle: 'italic',
+                color: 'rgba(255,255,255,0.2)',
+              }}>
+                Loading...
+              </div>
+            ) : (
+              filmography.map((film, i) => (
+                <div key={i} style={{
+                  fontFamily: 'Georgia, serif',
+                  fontSize: 13,
+                  fontWeight: 400,
+                  color: 'rgba(255,255,255,0.4)',
+                  lineHeight: 2,
+                }}>
+                  {film.title}
+                  <span style={{
+                    fontSize: 11,
+                    color: 'rgba(255,255,255,0.2)',
+                    marginLeft: 8,
+                  }}>
+                    {film.year || ''}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Section 5: TMDB Description */}
