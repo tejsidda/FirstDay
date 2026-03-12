@@ -1,76 +1,313 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { getWatched } from "@/lib/db"
 import type { Movie } from "@/lib/types"
+
+function WallPoster({
+  film,
+  isFiltered,
+  isNeighbor,
+  onClick,
+  onHover,
+  onLeave,
+  parallaxOffset,
+}: {
+  film: Movie
+  isFiltered: boolean
+  isNeighbor: boolean
+  onClick: () => void
+  onHover: () => void
+  onLeave: () => void
+  parallaxOffset: number
+}) {
+  const [hovered, setHovered] = useState(false)
+
+  const scale = hovered ? 1.08 : isNeighbor ? 1.02 : 1
+  const z = hovered ? 30 : isNeighbor ? 2 : 1
+
+  let filterVal = "brightness(1)"
+  if (isFiltered) filterVal = "brightness(0.15) saturate(0)"
+  else if (isNeighbor && !hovered) filterVal = "brightness(1.05)"
+
+  return (
+    <div
+      onMouseEnter={() => { setHovered(true); onHover() }}
+      onMouseLeave={() => { setHovered(false); onLeave() }}
+      onClick={onClick}
+      style={{
+        position: "relative",
+        aspectRatio: "2/3",
+        overflow: "hidden",
+        cursor: "pointer",
+        transition: "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+        transform: `scale(${scale}) translateX(${parallaxOffset}px)`,
+        zIndex: z,
+        boxShadow: hovered ? "0 20px 60px rgba(0,0,0,0.8)" : "none",
+        filter: filterVal,
+      }}
+    >
+      <img
+        src={film.poster}
+        alt={film.title}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          display: "block",
+        }}
+      />
+
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: hovered
+            ? "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 40%, transparent 70%)"
+            : "transparent",
+          transition: "background 0.3s ease",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-end",
+          padding: 14,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "Georgia, serif",
+            fontSize: 14,
+            fontWeight: 400,
+            fontStyle: "italic",
+            color: "rgba(255,255,255,0.9)",
+            opacity: hovered ? 1 : 0,
+            transform: hovered ? "translateY(0)" : "translateY(8px)",
+            transition: "opacity 0.3s ease, transform 0.3s ease",
+            lineHeight: 1.3,
+          }}
+        >
+          {film.title}
+        </div>
+
+        <div
+          style={{
+            fontFamily: "-apple-system, sans-serif",
+            fontSize: 10,
+            color: "rgba(255,255,255,0.4)",
+            opacity: hovered ? 1 : 0,
+            transform: hovered ? "translateY(0)" : "translateY(8px)",
+            transition: "opacity 0.3s ease 0.05s, transform 0.3s ease 0.05s",
+            marginTop: 4,
+          }}
+        >
+          {film.language} · {film.year}
+        </div>
+
+        {film.rating && (
+          <div
+            style={{
+              color: "#f5c518",
+              fontSize: 10,
+              opacity: hovered ? 1 : 0,
+              transform: hovered ? "translateY(0)" : "translateY(8px)",
+              transition: "opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s",
+              marginTop: 4,
+            }}
+          >
+            {"★".repeat(film.rating)}
+            {"☆".repeat(5 - film.rating)}
+          </div>
+        )}
+
+        {film.reviewHeadline && (
+          <div
+            style={{
+              fontFamily: "Georgia, serif",
+              fontSize: 9,
+              fontStyle: "italic",
+              color: "rgba(255,255,255,0.3)",
+              opacity: hovered ? 1 : 0,
+              transform: hovered ? "translateY(0)" : "translateY(8px)",
+              transition: "opacity 0.3s ease 0.15s, transform 0.3s ease 0.15s",
+              marginTop: 6,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
+            {film.reviewHeadline}
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          border: hovered
+            ? "1px solid rgba(255,255,255,0.15)"
+            : "1px solid transparent",
+          transition: "border-color 0.3s ease",
+          pointerEvents: "none",
+        }}
+      />
+    </div>
+  )
+}
 
 export default function LibraryPage() {
   const [watched, setWatched] = useState<Movie[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("All")
-  const [gridOpacity, setGridOpacity] = useState(1)
-  const didMountRef = useRef(false)
+  const [selectedLanguage, setSelectedLanguage] = useState("All")
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const [tilt, setTilt] = useState({ x: 0, y: 0 })
+  const [columns, setColumns] = useState(10)
+  const [scrollY, setScrollY] = useState(0)
+  const [collageUrl, setCollageUrl] = useState<string | null>(null)
+  const router = useRouter()
+  const wallRef = useRef<HTMLDivElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const spotlightRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let active = true
-
-    async function loadWatched() {
+    async function load() {
       setLoading(true)
-      const items = await getWatched()
+      const films = await getWatched()
       if (!active) return
-      setWatched(items)
+      setWatched(films)
       setLoading(false)
     }
+    load()
+    return () => { active = false }
+  }, [])
 
-    loadWatched()
+  // Poster collage for the header number
+  useEffect(() => {
+    if (watched.length === 0) return
+
+    const canvas = document.createElement("canvas")
+    const cols = Math.ceil(Math.sqrt(watched.length))
+    const rows = Math.ceil(watched.length / cols)
+    const thumbSize = 80
+    canvas.width = cols * thumbSize
+    canvas.height = rows * thumbSize
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    ctx.fillStyle = "#080808"
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    let loaded = 0
+    const total = Math.min(watched.length, cols * rows)
+
+    watched.slice(0, total).forEach((film, i) => {
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      img.onload = () => {
+        const col = i % cols
+        const row = Math.floor(i / cols)
+        ctx.drawImage(img, col * thumbSize, row * thumbSize, thumbSize, thumbSize * 1.5)
+        loaded++
+        if (loaded === total) {
+          setCollageUrl(canvas.toDataURL("image/jpeg", 0.85))
+        }
+      }
+      img.onerror = () => {
+        loaded++
+        if (loaded === total) {
+          setCollageUrl(canvas.toDataURL("image/jpeg", 0.85))
+        }
+      }
+      img.src = film.poster
+    })
+  }, [watched])
+
+  // Column count for neighbor ripple calculation
+  useEffect(() => {
+    const calculateColumns = () => {
+      if (!gridRef.current) return
+      const width = gridRef.current.offsetWidth
+      setColumns(Math.max(1, Math.floor(width / 140)))
+    }
+    calculateColumns()
+    window.addEventListener("resize", calculateColumns)
+    return () => window.removeEventListener("resize", calculateColumns)
+  }, [])
+
+  // 3D tilt — tracks global mouse relative to viewport center
+  useEffect(() => {
+    let rafId: number | null = null
+    const handleGlobalMouse = (e: MouseEvent) => {
+      if (rafId != null) return
+      rafId = requestAnimationFrame(() => {
+        const centerX = window.innerWidth / 2
+        const centerY = window.innerHeight / 2
+        setTilt({
+          x: ((e.clientY - centerY) / centerY) * -3,
+          y: ((e.clientX - centerX) / centerX) * 3,
+        })
+        rafId = null
+      })
+    }
+    window.addEventListener("mousemove", handleGlobalMouse)
     return () => {
-      active = false
+      window.removeEventListener("mousemove", handleGlobalMouse)
+      if (rafId != null) cancelAnimationFrame(rafId)
     }
   }, [])
 
+  // Scroll parallax
   useEffect(() => {
-    if (!didMountRef.current) {
-      didMountRef.current = true
-      return
+    let rafId: number | null = null
+    const handleScroll = () => {
+      if (rafId != null) return
+      rafId = requestAnimationFrame(() => {
+        setScrollY(window.scrollY)
+        rafId = null
+      })
     }
-    setGridOpacity(0.5)
-    const timer = window.setTimeout(() => setGridOpacity(1), 140)
-    return () => window.clearTimeout(timer)
-  }, [selectedLanguage])
-
-  const languageCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const film of watched) {
-      const lang = film.language?.trim()
-      if (!lang) continue
-      counts.set(lang, (counts.get(lang) || 0) + 1)
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    return () => {
+      window.removeEventListener("scroll", handleScroll)
+      if (rafId != null) cancelAnimationFrame(rafId)
     }
-    return counts
-  }, [watched])
+  }, [])
 
-  const languages = useMemo(
-    () => ["All", ...Array.from(languageCounts.keys())],
-    [languageCounts]
-  )
+  // Spotlight — updates CSS custom properties directly to avoid re-renders
+  const handleWallMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!spotlightRef.current) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    spotlightRef.current.style.setProperty("--mouse-x", `${e.clientX - rect.left}px`)
+    spotlightRef.current.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`)
+  }, [])
 
-  const filteredFilms =
-    selectedLanguage === "All"
-      ? watched
-      : watched.filter((m) => m.language === selectedLanguage)
+  const languages = [
+    "All",
+    ...Array.from(new Set(watched.map((m) => m.language).filter(Boolean))).sort(),
+  ]
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center" style={{ background: "#080808" }}>
-        <p style={{ color: "rgba(255,255,255,0.3)", fontStyle: "italic", fontFamily: 'Georgia, serif' }}>
-          Loading your library...
+      <main
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: "#080808" }}
+      >
+        <p
+          style={{
+            fontFamily: "Georgia, serif",
+            fontSize: 16,
+            fontStyle: "italic",
+            color: "rgba(255,255,255,0.3)",
+          }}
+        >
+          Loading your wall...
         </p>
       </main>
     )
   }
 
-  const totalCount = watched.length
-  const allEmpty = totalCount === 0
+  const showSpotlight = selectedLanguage === "All"
 
   return (
     <main className="min-h-screen" style={{ background: "#080808" }}>
@@ -78,13 +315,13 @@ export default function LibraryPage() {
         href="/home"
         style={{
           position: "fixed",
-          top: 24,
+          top: 20,
           left: 24,
           zIndex: 50,
           fontFamily: "-apple-system, sans-serif",
-          fontSize: 14,
+          fontSize: 13,
           fontWeight: 600,
-          color: "rgba(255,255,255,0.5)",
+          color: "rgba(255,255,255,0.4)",
           textDecoration: "none",
           letterSpacing: "0.1em",
         }}
@@ -92,193 +329,191 @@ export default function LibraryPage() {
         FDFS
       </Link>
 
-      <header style={{ paddingLeft: 48, paddingRight: 48, paddingTop: 100 }}>
-        <h1
-          style={{
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: 36,
-            fontWeight: 400,
-            fontStyle: "italic",
-            color: "rgba(255,255,255,0.9)",
-            lineHeight: 1.1,
-          }}
-        >
-          Library
-        </h1>
-        <p
-          style={{
-            marginTop: 8,
-            fontSize: 14,
-            color: "rgba(255,255,255,0.35)",
-            fontStyle: "italic",
-            fontFamily: 'Georgia, "Times New Roman", serif',
-          }}
-        >
-          {totalCount} films watched
-        </p>
+      <style>{`
+        @keyframes posterDrift {
+          0% { background-position: 0% 0%; }
+          50% { background-position: 100% 100%; }
+          100% { background-position: 0% 0%; }
+        }
+      `}</style>
 
-        {!allEmpty && (
-          <div className="flex flex-wrap" style={{ marginTop: 28, gap: 8 }}>
-            {languages.map((lang) => {
-              const count = lang === "All" ? totalCount : languageCounts.get(lang) || 0
-              const active = lang === selectedLanguage
-              return (
-                <button
-                  key={lang}
-                  type="button"
-                  onClick={() => setSelectedLanguage(lang)}
-                  style={{
-                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-                    fontSize: 11,
-                    fontWeight: 500,
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                    color: active ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.4)",
-                    padding: "7px 18px",
-                    border: active
-                      ? "1px solid rgba(255,255,255,0.25)"
-                      : "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 999,
-                    background: active ? "rgba(255,255,255,0.06)" : "transparent",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (active) return
-                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"
-                    e.currentTarget.style.color = "rgba(255,255,255,0.6)"
-                  }}
-                  onMouseLeave={(e) => {
-                    if (active) return
-                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"
-                    e.currentTarget.style.color = "rgba(255,255,255,0.4)"
-                  }}
-                >
-                  {lang} ({count})
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </header>
-
-      {allEmpty ? (
-        <div className="min-h-[45vh] flex items-center justify-center" style={{ padding: "0 48px" }}>
-          <p
-            style={{
-              fontFamily: 'Georgia, "Times New Roman", serif',
-              fontSize: 16,
-              color: "rgba(255,255,255,0.3)",
-              fontStyle: "italic",
-              textAlign: "center",
-              lineHeight: 1.8,
-            }}
-          >
-            Your library is empty.
-            <br />
-            Watch a film and it&apos;ll appear here.
-          </p>
-        </div>
-      ) : filteredFilms.length === 0 ? (
-        <div className="min-h-[45vh] flex items-center justify-center" style={{ padding: "0 48px" }}>
-          <p
-            style={{
-              fontFamily: 'Georgia, "Times New Roman", serif',
-              fontSize: 16,
-              color: "rgba(255,255,255,0.3)",
-              fontStyle: "italic",
-              textAlign: "center",
-            }}
-          >
-            No {selectedLanguage} films in your library yet.
-          </p>
-        </div>
-      ) : (
+      <div
+        style={{
+          paddingTop: 100,
+          paddingBottom: 40,
+          textAlign: "center",
+          background: "#080808",
+        }}
+      >
         <div
           style={{
-            marginTop: 40,
-            padding: "0 48px 100px 48px",
-            opacity: gridOpacity,
-            transition: "opacity 0.2s ease",
+            display: "inline-block",
+            fontSize: "clamp(160px, 28vw, 300px)",
+            fontWeight: 900,
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontStyle: "italic",
+            lineHeight: 0.85,
+            WebkitTextFillColor: collageUrl ? "transparent" : undefined,
+            WebkitBackgroundClip: collageUrl ? "text" : undefined,
+            backgroundClip: collageUrl ? "text" : undefined,
+            backgroundImage: collageUrl ? `url(${collageUrl})` : "none",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            color: collageUrl ? "transparent" : "rgba(255,255,255,0.5)",
+            filter: collageUrl ? "saturate(1.2) contrast(1.05)" : "none",
+            animation: collageUrl ? "posterDrift 20s ease-in-out infinite" : "none",
+          }}
+        >
+          {watched.length}
+        </div>
+
+        <p
+          style={{
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontSize: 16,
+            fontWeight: 400,
+            fontStyle: "italic",
+            color: "rgba(255,255,255,0.35)",
+            marginTop: 16,
+            letterSpacing: "0.02em",
+          }}
+        >
+          films. Every one meant something.
+        </p>
+      </div>
+
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 40,
+          display: "flex",
+          justifyContent: "center",
+          gap: 6,
+          padding: "16px 0",
+          background:
+            "linear-gradient(to bottom, #080808 0%, #080808 60%, transparent 100%)",
+        }}
+      >
+        {languages.map((lang) => (
+          <button
+            key={lang}
+            onClick={() => setSelectedLanguage(prev => prev === lang ? "All" : lang)}
+            style={{
+              fontFamily: "-apple-system, sans-serif",
+              fontSize: 10,
+              fontWeight: 500,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color:
+                selectedLanguage === lang
+                  ? "rgba(255,255,255,0.85)"
+                  : "rgba(255,255,255,0.3)",
+              padding: "6px 14px",
+              border:
+                selectedLanguage === lang
+                  ? "1px solid rgba(255,255,255,0.2)"
+                  : "1px solid transparent",
+              borderRadius: 999,
+              background:
+                selectedLanguage === lang
+                  ? "rgba(255,255,255,0.06)"
+                  : "transparent",
+              cursor: "pointer",
+              transition: "all 0.3s ease",
+            }}
+          >
+            {lang}
+          </button>
+        ))}
+      </div>
+
+      {/* 3D perspective wrapper */}
+      <div style={{ perspective: "1200px", perspectiveOrigin: "50% 50%" }}>
+        <div
+          ref={wallRef}
+          onMouseMove={handleWallMouseMove}
+          style={{
+            position: "relative",
+            transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+            transition: "transform 0.15s ease-out",
+            transformStyle: "preserve-3d",
           }}
         >
           <div
+            ref={gridRef}
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-              columnGap: 24,
-              rowGap: 32,
+              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+              gap: 0,
+              width: "100%",
             }}
           >
-            {filteredFilms.map((film) => {
-              const stars =
-                typeof film.rating === "number"
-                  ? "★".repeat(Math.max(0, Math.min(5, film.rating)))
-                  : ""
+            {watched.map((film, i) => {
+              const row = Math.floor(i / columns)
+              const parallaxOffset = row % 2 === 0 ? scrollY * 0.02 : scrollY * -0.02
+
+              const isNeighbor =
+                hoveredIndex !== null &&
+                hoveredIndex !== i &&
+                (i === hoveredIndex - 1 ||
+                  i === hoveredIndex + 1 ||
+                  i === hoveredIndex - columns ||
+                  i === hoveredIndex + columns)
+
               return (
-                <Link key={film.id} href={`/movie/${film.id}`} style={{ textDecoration: "none" }}>
-                  <article>
-                    <div
-                      className="transition-all duration-300 ease-out hover:-translate-y-1.5"
-                      style={{
-                        width: "100%",
-                        aspectRatio: "2 / 3",
-                        borderRadius: 8,
-                        overflow: "hidden",
-                        boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
-                        cursor: "pointer",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.boxShadow = "0 12px 32px rgba(0,0,0,0.6)"
-                        e.currentTarget.style.transform = "translateY(-6px)"
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.4)"
-                        e.currentTarget.style.transform = "translateY(0)"
-                      }}
-                    >
-                      <img
-                        src={film.poster}
-                        alt={film.title}
-                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                      />
-                    </div>
-                    <p
-                      style={{
-                        marginTop: 10,
-                        fontFamily: 'Georgia, "Times New Roman", serif',
-                        fontSize: 13,
-                        fontWeight: 400,
-                        color: "rgba(255,255,255,0.8)",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {film.title}
-                    </p>
-                    <p
-                      style={{
-                        marginTop: 4,
-                        fontSize: 11,
-                        color: "rgba(255,255,255,0.35)",
-                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-                      }}
-                    >
-                      {film.language || "Unknown"} {film.year ? `· ${film.year}` : ""}
-                    </p>
-                    {stars && (
-                      <p style={{ marginTop: 4, color: "#f5c518", fontSize: 11, letterSpacing: "0.03em" }}>
-                        {stars}
-                      </p>
-                    )}
-                  </article>
-                </Link>
+                <WallPoster
+                  key={film.id}
+                  film={film}
+                  isFiltered={
+                    selectedLanguage !== "All" &&
+                    film.language !== selectedLanguage
+                  }
+                  isNeighbor={isNeighbor}
+                  onHover={() => setHoveredIndex(i)}
+                  onLeave={() => setHoveredIndex(null)}
+                  onClick={() => router.push(`/movie/${film.id}`)}
+                  parallaxOffset={parallaxOffset}
+                />
               )
             })}
           </div>
+
+          {/* Spotlight overlay */}
+          {showSpotlight && (
+            <div
+              ref={spotlightRef}
+              style={{
+                position: "absolute",
+                inset: 0,
+                background:
+                  "radial-gradient(circle 250px at var(--mouse-x, 50%) var(--mouse-y, 50%), transparent 0%, rgba(0,0,0,0.55) 100%)",
+                pointerEvents: "none",
+                zIndex: 20,
+              }}
+            />
+          )}
         </div>
-      )}
+      </div>
+
+      <div
+        style={{
+          padding: "80px 0",
+          textAlign: "center",
+          background: "#080808",
+        }}
+      >
+        <p
+          style={{
+            fontFamily: "Georgia, serif",
+            fontSize: 13,
+            fontStyle: "italic",
+            color: "rgba(255,255,255,0.15)",
+          }}
+        >
+          The reel keeps rolling.
+        </p>
+      </div>
     </main>
   )
 }
