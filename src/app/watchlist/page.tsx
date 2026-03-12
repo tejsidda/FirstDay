@@ -3,7 +3,11 @@
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { getWatchlist } from "@/lib/db"
+import {
+  getWatchlist,
+  markAsWatched,
+  removeFromWatchlist,
+} from "@/lib/db"
 import type { Movie } from "@/lib/types"
 
 const DEFAULT_AMBIENT: [number, number, number] = [45, 38, 28]
@@ -52,19 +56,19 @@ function FilmFrame({
         cursor: "pointer",
         transition: "all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
         transform: isCentered ? "scale(1.15)" : "scale(0.85)",
-        opacity: isCentered ? 1 : 0.4,
+        opacity: isCentered ? 1 : 0.35,
         filter: isCentered ? "brightness(1)" : "brightness(0.6)",
         zIndex: isCentered ? 10 : 1,
       }}
     >
       <div
         style={{
-          background: "#111",
+          background: "#151413",
           borderRadius: 4,
           padding: "12px 8px",
           boxShadow: isCentered
-            ? "0 20px 60px rgba(0,0,0,0.8), 0 0 30px rgba(255,255,255,0.03)"
-            : "0 4px 16px rgba(0,0,0,0.4)",
+            ? "0 20px 60px rgba(19,18,17,0.8), 0 0 30px rgba(255,255,255,0.03)"
+            : "0 4px 16px rgba(19,18,17,0.4)",
           transition: "box-shadow 0.5s ease",
         }}
       >
@@ -134,7 +138,7 @@ function SprocketRow() {
             width: 10,
             height: 7,
             borderRadius: 1.5,
-            background: "rgba(255,255,255,0.04)",
+            background: "rgba(255,255,255,0.035)",
             flexShrink: 0,
           }}
         />
@@ -153,6 +157,8 @@ export default function WatchlistPage() {
   const [centeredIndex, setCenteredIndex] = useState(0)
   const [ambientRgb, setAmbientRgb] = useState<[number, number, number]>(DEFAULT_AMBIENT)
   const [isSpinning, setIsSpinning] = useState(false)
+  const [showRating, setShowRating] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
   const router = useRouter()
   const stripRef = useRef<HTMLDivElement>(null)
   const ambientCacheRef = useRef<Record<string, [number, number, number]>>({})
@@ -190,6 +196,79 @@ export default function WatchlistPage() {
     })
     return () => { cancelled = true }
   }, [centeredIndex, watchlist])
+
+  useEffect(() => {
+    setShowRating(false)
+  }, [centeredIndex])
+
+  const syncStripToIndex = useCallback((index: number, length: number) => {
+    if (!stripRef.current || length <= 0) return
+    const idx = Math.max(0, Math.min(index, length - 1))
+    stripRef.current.scrollTo({ left: idx * CARD_TOTAL, behavior: "smooth" })
+    setCenteredIndex(idx)
+  }, [])
+
+  const scrollStrip = useCallback(
+    (direction: -1 | 1) => {
+      if (watchlist.length <= 1) return
+      const next = centeredIndex + direction
+      if (next < 0 || next >= watchlist.length) return
+      syncStripToIndex(next, watchlist.length)
+    },
+    [centeredIndex, watchlist.length, syncStripToIndex]
+  )
+
+  // Keyboard: Left/Right arrows move the strip one film at a time
+  useEffect(() => {
+    if (watchlist.length <= 1) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
+      const t = e.target as HTMLElement
+      if (
+        t.tagName === "INPUT" ||
+        t.tagName === "TEXTAREA" ||
+        t.isContentEditable
+      ) {
+        return
+      }
+      e.preventDefault()
+      if (e.key === "ArrowLeft") scrollStrip(-1)
+      else scrollStrip(1)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [watchlist.length, scrollStrip])
+
+  const handleMarkWatched = async (film: Movie, rating: number) => {
+    setActionLoading(true)
+    const success = await markAsWatched(film, rating)
+    if (success) {
+      const updated = watchlist.filter((m) => m.id !== film.id)
+      setWatchlist(updated)
+      const nextIndex =
+        centeredIndex >= updated.length && updated.length > 0
+          ? updated.length - 1
+          : Math.min(centeredIndex, Math.max(0, updated.length - 1))
+      syncStripToIndex(nextIndex, updated.length)
+      setShowRating(false)
+    }
+    setActionLoading(false)
+  }
+
+  const handleRemove = async (film: Movie) => {
+    setActionLoading(true)
+    const success = await removeFromWatchlist(film.id)
+    if (success) {
+      const updated = watchlist.filter((m) => m.id !== film.id)
+      setWatchlist(updated)
+      const nextIndex =
+        centeredIndex >= updated.length && updated.length > 0
+          ? updated.length - 1
+          : Math.min(centeredIndex, Math.max(0, updated.length - 1))
+      syncStripToIndex(nextIndex, updated.length)
+    }
+    setActionLoading(false)
+  }
 
   const handleStripScroll = useCallback(() => {
     if (!stripRef.current) return
@@ -238,7 +317,7 @@ export default function WatchlistPage() {
     requestAnimationFrame(animate)
   }, [isSpinning, watchlist.length])
 
-  const ambientColor = `rgba(${ambientRgb[0]},${ambientRgb[1]},${ambientRgb[2]},0.3)`
+  const ambientColor = `rgba(${ambientRgb[0]},${ambientRgb[1]},${ambientRgb[2]},0.25)`
 
   if (loading) {
     return (
@@ -248,7 +327,7 @@ export default function WatchlistPage() {
           width: "100vw",
           height: "100vh",
           overflow: "hidden",
-          background: "#080808",
+          background: "#131211",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -259,7 +338,7 @@ export default function WatchlistPage() {
             fontFamily: "Georgia, serif",
             fontSize: 16,
             fontStyle: "italic",
-            color: "rgba(255,255,255,0.3)",
+            color: "rgba(255,255,255,0.25)",
           }}
         >
           Threading the reel...
@@ -275,7 +354,7 @@ export default function WatchlistPage() {
         width: "100vw",
         height: "100vh",
         overflow: "hidden",
-        background: "#080808",
+        background: "#131211",
       }}
     >
       <style>{`
@@ -287,8 +366,8 @@ export default function WatchlistPage() {
         style={{
           position: "fixed",
           inset: 0,
-          background: `radial-gradient(ellipse at 50% 50%, ${ambientColor} 0%, #080808 70%)`,
-          transition: "background 1s ease-in-out",
+          background: `radial-gradient(ellipse at 50% 50%, ${ambientColor} 0%, #131211 70%)`,
+          transition: "background 1.2s ease-in-out",
           zIndex: 0,
         }}
       />
@@ -366,11 +445,12 @@ export default function WatchlistPage() {
                 ? "rgba(255,255,255,0.3)"
                 : "rgba(255,255,255,0.6)",
               background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.1)",
+              border: "1px solid rgba(255,255,255,0.08)",
               borderRadius: 999,
               padding: "12px 32px",
               cursor: isSpinning ? "default" : "pointer",
-              backdropFilter: "blur(8px)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
               transition: "all 0.3s ease",
               letterSpacing: "0.03em",
             }}
@@ -381,7 +461,7 @@ export default function WatchlistPage() {
               }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"
               e.currentTarget.style.color = isSpinning
                 ? "rgba(255,255,255,0.3)"
                 : "rgba(255,255,255,0.6)"
@@ -439,6 +519,129 @@ export default function WatchlistPage() {
             <SprocketRow />
           </div>
 
+          {/* Left / right strip navigation */}
+          {watchlist.length > 1 && (
+            <>
+              <button
+                type="button"
+                aria-label="Previous film"
+                disabled={centeredIndex <= 0}
+                onClick={() => scrollStrip(-1)}
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: 16,
+                  transform: "translateY(-50%)",
+                  zIndex: 25,
+                  width: 48,
+                  height: 48,
+                  borderRadius: "50%",
+                  background:
+                    centeredIndex <= 0
+                      ? "rgba(255,255,255,0.02)"
+                      : "rgba(255,255,255,0.06)",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color:
+                    centeredIndex <= 0
+                      ? "rgba(255,255,255,0.15)"
+                      : "rgba(255,255,255,0.5)",
+                  cursor: centeredIndex <= 0 ? "default" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  if (centeredIndex <= 0) return
+                  e.currentTarget.style.background = "rgba(255,255,255,0.12)"
+                  e.currentTarget.style.color = "rgba(255,255,255,0.9)"
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"
+                }}
+                onMouseLeave={(e) => {
+                  if (centeredIndex <= 0) return
+                  e.currentTarget.style.background = "rgba(255,255,255,0.06)"
+                  e.currentTarget.style.color = "rgba(255,255,255,0.5)"
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"
+                }}
+              >
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                aria-label="Next film"
+                disabled={centeredIndex >= watchlist.length - 1}
+                onClick={() => scrollStrip(1)}
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  right: 16,
+                  transform: "translateY(-50%)",
+                  zIndex: 25,
+                  width: 48,
+                  height: 48,
+                  borderRadius: "50%",
+                  background:
+                    centeredIndex >= watchlist.length - 1
+                      ? "rgba(255,255,255,0.02)"
+                      : "rgba(255,255,255,0.06)",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color:
+                    centeredIndex >= watchlist.length - 1
+                      ? "rgba(255,255,255,0.15)"
+                      : "rgba(255,255,255,0.5)",
+                  cursor:
+                    centeredIndex >= watchlist.length - 1
+                      ? "default"
+                      : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  if (centeredIndex >= watchlist.length - 1) return
+                  e.currentTarget.style.background = "rgba(255,255,255,0.12)"
+                  e.currentTarget.style.color = "rgba(255,255,255,0.9)"
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"
+                }}
+                onMouseLeave={(e) => {
+                  if (centeredIndex >= watchlist.length - 1) return
+                  e.currentTarget.style.background = "rgba(255,255,255,0.06)"
+                  e.currentTarget.style.color = "rgba(255,255,255,0.5)"
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"
+                }}
+              >
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </>
+          )}
+
           {/* Center frame indicator */}
           <div
             style={{
@@ -448,36 +651,229 @@ export default function WatchlistPage() {
               transform: "translate(-50%, -50%)",
               width: CARD_WIDTH + 40,
               height: 500,
-              border: "1px solid rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.035)",
               borderRadius: 8,
               pointerEvents: "none",
               zIndex: 5,
             }}
           />
 
-          {/* Film counter */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: 40,
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 15,
-              textAlign: "center",
-            }}
-          >
+          {/* Centered film actions: mark watched + remove */}
+          {watchlist[centeredIndex] && (
             <div
               style={{
-                fontFamily: "Georgia, serif",
-                fontSize: 11,
-                fontStyle: "italic",
-                color: "rgba(255,255,255,0.2)",
-                letterSpacing: "0.05em",
+                position: "absolute",
+                bottom: 50,
+                left: "50%",
+                transform: "translateX(-50%)",
+                textAlign: "center",
+                zIndex: 15,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 16,
               }}
             >
-              {centeredIndex + 1} of {watchlist.length}
+              <div
+                style={{
+                  fontFamily: "Georgia, serif",
+                  fontSize: 11,
+                  fontStyle: "italic",
+                  color: "rgba(255,255,255,0.2)",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {centeredIndex + 1} of {watchlist.length}
+              </div>
+
+              {!showRating && !actionLoading && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 16,
+                    alignItems: "center",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowRating(true)
+                    }}
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: "50%",
+                      background: "rgba(255,255,255,0.06)",
+                      backdropFilter: "blur(8px)",
+                      WebkitBackdropFilter: "blur(8px)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: "rgba(255,255,255,0.5)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(255,255,255,0.12)"
+                      e.currentTarget.style.color = "rgba(255,255,255,0.8)"
+                      e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "rgba(255,255,255,0.06)"
+                      e.currentTarget.style.color = "rgba(255,255,255,0.5)"
+                      e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"
+                    }}
+                    title="Mark as watched"
+                  >
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleRemove(watchlist[centeredIndex])
+                    }}
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: "50%",
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      color: "rgba(255,255,255,0.3)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(255,100,100,0.08)"
+                      e.currentTarget.style.color = "rgba(255,150,150,0.6)"
+                      e.currentTarget.style.borderColor = "rgba(255,100,100,0.15)"
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "rgba(255,255,255,0.03)"
+                      e.currentTarget.style.color = "rgba(255,255,255,0.3)"
+                      e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"
+                    }}
+                    title="Remove from watchlist"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {showRating && !actionLoading && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <p
+                    style={{
+                      fontFamily: "Georgia, serif",
+                      fontSize: 13,
+                      fontStyle: "italic",
+                      color: "rgba(255,255,255,0.4)",
+                    }}
+                  >
+                    How was it?
+                  </p>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleMarkWatched(watchlist[centeredIndex], star)
+                        }}
+                        style={{
+                          fontSize: 28,
+                          color: "#f5c518",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: "4px 6px",
+                          transition: "transform 0.15s ease",
+                          lineHeight: 1,
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.transform = "scale(1.3)")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.transform = "scale(1)")
+                        }
+                      >
+                        ★
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowRating(false)
+                    }}
+                    style={{
+                      fontFamily: "Georgia, serif",
+                      fontSize: 11,
+                      fontStyle: "italic",
+                      color: "rgba(255,255,255,0.2)",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      marginTop: 4,
+                    }}
+                  >
+                    cancel
+                  </button>
+                </div>
+              )}
+
+              {actionLoading && (
+                <p
+                  style={{
+                    fontFamily: "Georgia, serif",
+                    fontSize: 13,
+                    fontStyle: "italic",
+                    color: "rgba(255,255,255,0.3)",
+                  }}
+                >
+                  Updating...
+                </p>
+              )}
             </div>
-          </div>
+          )}
         </>
       )}
     </main>

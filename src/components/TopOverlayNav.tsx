@@ -23,8 +23,8 @@ export default function TopOverlayNav({
   const itemClass = (href?: string) => {
     const isActive = href != null && pathname === href
     return [
-      "text-[13px] font-normal transition-colors duration-200",
-      isActive ? "text-white/90" : "text-white/50 hover:text-white/90",
+      "text-[13px] font-normal transition-colors duration-300",
+      isActive ? "text-white/90" : "text-white/55 hover:text-white/90",
     ].join(" ")
   }
 
@@ -32,15 +32,16 @@ export default function TopOverlayNav({
     <div
       className="fixed top-0 left-0 right-0 z-50"
       style={{
-        backgroundColor: scrolled ? "rgba(0,0,0,0.85)" : "rgba(0,0,0,0)",
+        backgroundColor: scrolled ? "rgba(13,13,15,0.9)" : "rgba(13,13,15,0)",
         backdropFilter: scrolled ? "blur(12px)" : "blur(0px)",
-        transition: "background-color 300ms ease, backdrop-filter 300ms ease",
+        WebkitBackdropFilter: scrolled ? "blur(12px)" : "blur(0px)",
+        transition: "background-color 400ms ease-out, backdrop-filter 400ms ease-out, -webkit-backdrop-filter 400ms ease-out",
       }}
     >
       <div className="flex w-full items-center justify-between px-12 py-4">
         <Link
           href="/home"
-          className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-md bg-white/95"
+          className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-md bg-white/90"
           aria-label="FDFS Home"
         >
           <Image

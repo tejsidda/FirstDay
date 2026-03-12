@@ -63,7 +63,7 @@ export default function MovieSearch({
       onClick={onClose}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="absolute inset-0 backdrop-blur-sm" style={{ background: 'rgba(13,13,15,0.8)' }} />
 
       {/* Search panel */}
       <div
@@ -77,8 +77,10 @@ export default function MovieSearch({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search for a movie..."
-            className="flex-1 rounded-xl bg-neutral-900 border border-white/10 px-5 py-4 text-white text-base outline-none focus:border-white/25 transition-colors"
-            style={{ fontFamily: "Georgia, serif" }}
+            className="flex-1 rounded-xl border px-5 py-4 text-white text-base outline-none transition-colors"
+            style={{ background: '#1A1A1F', borderColor: 'rgba(255,255,255,0.06)', fontFamily: 'Georgia, serif' }}
+            onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'}
+            onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'}
           />
           <input
             value={year}
@@ -88,14 +90,16 @@ export default function MovieSearch({
             }}
             placeholder="Year"
             inputMode="numeric"
-            className="w-20 rounded-xl bg-neutral-900 border border-white/10 px-3 py-4 text-white text-sm outline-none focus:border-white/25 transition-colors"
-            style={{ fontFamily: "Georgia, serif" }}
+            className="w-20 rounded-xl border px-3 py-4 text-white text-sm outline-none transition-colors"
+            style={{ background: '#1A1A1F', borderColor: 'rgba(255,255,255,0.06)', fontFamily: 'Georgia, serif' }}
+            onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'}
+            onBlur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'}
           />
         </div>
 
         {/* Results */}
         {(results.length > 0 || loading) && (
-          <div className="mt-2 max-h-[60vh] overflow-y-auto rounded-xl bg-neutral-900 border border-white/10">
+          <div className="mt-2 max-h-[60vh] overflow-y-auto rounded-xl border" style={{ background: '#141418', borderColor: 'rgba(255,255,255,0.06)' }}>
             {loading && results.length === 0 && (
               <div className="px-5 py-8 text-center text-white/30 text-sm">
                 Searching...
@@ -112,8 +116,8 @@ export default function MovieSearch({
                 className="flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-white/5"
               >
                 <div
-                  className="h-16 w-11 shrink-0 rounded bg-neutral-800 bg-cover bg-center"
-                  style={{ backgroundImage: `url(${movie.poster})` }}
+                  className="h-16 w-11 shrink-0 rounded bg-cover bg-center"
+                  style={{ backgroundColor: '#1A1A1F', backgroundImage: `url(${movie.poster})` }}
                 />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-white truncate">

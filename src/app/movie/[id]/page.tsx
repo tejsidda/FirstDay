@@ -217,7 +217,7 @@ export default function MovieDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center" style={{ background: "#080808" }}>
+      <main className="min-h-screen flex items-center justify-center" style={{ background: "#0C0C10" }}>
         <p style={{ color: "rgba(255,255,255,0.3)", fontStyle: "italic", fontFamily: 'Georgia, "Times New Roman", serif' }}>
           Loading...
         </p>
@@ -229,7 +229,7 @@ export default function MovieDetailPage() {
     <main
       className="min-h-screen"
       style={{
-        background: "#080808",
+        background: "#0C0C10",
         color: "rgba(255,255,255,0.85)",
         fontFamily: 'Georgia, "Times New Roman", serif',
         scrollBehavior: "smooth",
@@ -248,7 +248,7 @@ export default function MovieDetailPage() {
           height: "100vh",
           zIndex: 1,
           marginBottom: 0,
-          background: "#080808",
+          background: "#0C0C10",
           opacity: heroOpacity,
           transform: `scale(${heroScale})`,
           transition: "none",
@@ -340,7 +340,7 @@ export default function MovieDetailPage() {
             style={{
               position: "absolute",
               inset: 0,
-              background: "rgba(0,0,0,0.15)",
+              background: "rgba(12,12,16,0.2)",
               zIndex: 2,
               pointerEvents: "none",
             }}
@@ -370,7 +370,7 @@ export default function MovieDetailPage() {
                 textAlign: "center",
                 textTransform: "uppercase",
                 mixBlendMode: "difference",
-                textShadow: "0 0 80px rgba(0,0,0,0.5), 0 0 40px rgba(0,0,0,0.3)",
+                textShadow: "0 0 80px rgba(12,12,16,0.5), 0 0 40px rgba(12,12,16,0.3)",
                 WebkitTextStroke: "1px rgba(255,255,255,0.15)",
               }}
             >
@@ -424,9 +424,10 @@ export default function MovieDetailPage() {
             width: 40,
             height: 40,
             borderRadius: "50%",
-            background: "rgba(0,0,0,0.4)",
-            backdropFilter: "blur(8px)",
-            border: "1px solid rgba(255,255,255,0.15)",
+            background: "rgba(12,12,16,0.5)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            border: "1px solid rgba(255,255,255,0.12)",
             color: "white",
             fontSize: 16,
             cursor: "pointer",
@@ -442,10 +443,10 @@ export default function MovieDetailPage() {
         style={{
           position: "relative",
           zIndex: 30,
-          background: "#080808",
-          boxShadow: "0 -20px 60px rgba(0,0,0,0.8)",
+          background: "#0C0C10",
+          boxShadow: "0 -20px 60px rgba(12,12,16,0.9)",
           paddingTop: 80,
-          borderRadius: "20px 20px 0 0",
+          borderRadius: "24px 24px 0 0",
         }}
       >
 
@@ -465,7 +466,7 @@ export default function MovieDetailPage() {
             zIndex: 10,
             transform: `translate3d(${heroMotion.x * 5}px, ${heroMotion.y * 4}px, 0)`,
             transition: "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
-            textShadow: "0 4px 30px rgba(0,0,0,0.6)",
+            textShadow: "0 4px 30px rgba(12,12,16,0.6)",
           }}
         >
           {movie?.title || "Untitled"}
@@ -549,7 +550,7 @@ export default function MovieDetailPage() {
                 textTransform: "uppercase",
                 color: "rgba(255,255,255,0.4)",
                 padding: "5px 14px",
-                border: "1px solid rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.06)",
                 borderRadius: 999,
               }}
             >
@@ -572,7 +573,7 @@ export default function MovieDetailPage() {
                   fontStyle: "italic",
                   textTransform: "uppercase",
                   letterSpacing: "0.06em",
-                  color: "rgba(255,255,255,0.6)",
+                  color: "rgba(255,255,255,0.55)",
                   lineHeight: 1.3,
                 }}
               >
@@ -756,7 +757,7 @@ export default function MovieDetailPage() {
             <img
               src={posterSrc}
               alt={movie?.title || "Poster"}
-              style={{ width: 220, borderRadius: 6, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}
+              style={{ width: 220, borderRadius: 6, boxShadow: '0 8px 32px rgba(12,12,16,0.5)' }}
             />
           ) : null}
         </div>
@@ -804,7 +805,7 @@ export default function MovieDetailPage() {
           <div style={{
             flex: 1,
             paddingLeft: 32,
-            borderLeft: '1px solid rgba(255,255,255,0.06)',
+            borderLeft: '1px solid rgba(255,255,255,0.05)',
             minHeight: 200,
             opacity: 1,
             transition: 'opacity 0.3s ease',
@@ -880,7 +881,7 @@ export default function MovieDetailPage() {
           style={{
             width: 30,
             height: 1,
-            background: "rgba(255,255,255,0.06)",
+            background: "rgba(255,255,255,0.05)",
             marginTop: 0,
             marginBottom: 28,
             marginLeft: "auto",

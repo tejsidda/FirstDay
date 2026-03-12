@@ -45,7 +45,7 @@ function WallPoster({
         transition: "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
         transform: `scale(${scale}) translateX(${parallaxOffset}px)`,
         zIndex: z,
-        boxShadow: hovered ? "0 20px 60px rgba(0,0,0,0.8)" : "none",
+        boxShadow: hovered ? "0 20px 60px rgba(10,12,18,0.8)" : "none",
         filter: filterVal,
       }}
     >
@@ -65,7 +65,7 @@ function WallPoster({
           position: "absolute",
           inset: 0,
           background: hovered
-            ? "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 40%, transparent 70%)"
+            ? "linear-gradient(to top, rgba(10,12,18,0.85) 0%, rgba(10,12,18,0.3) 40%, transparent 70%)"
             : "transparent",
           transition: "background 0.3s ease",
           display: "flex",
@@ -182,45 +182,102 @@ export default function LibraryPage() {
     return () => { active = false }
   }, [])
 
-  // Poster collage for the header number
+  // Dense poster mosaic masked to digit shape via canvas destination-in (no tainted canvas — proxy same-origin)
   useEffect(() => {
-    if (watched.length === 0) return
+    if (watched.length === 0) {
+      setCollageUrl(null)
+      return
+    }
 
+    const count = watched.length
+    const CELL = 52
+    const GAP = 3
+    const STEP = CELL + GAP
+    const W = 1800
+    const H = 640
     const canvas = document.createElement("canvas")
-    const cols = Math.ceil(Math.sqrt(watched.length))
-    const rows = Math.ceil(watched.length / cols)
-    const thumbSize = 80
-    canvas.width = cols * thumbSize
-    canvas.height = rows * thumbSize
+    canvas.width = W
+    canvas.height = H
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    ctx.fillStyle = "#080808"
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    // Slight gutter between tiles (2–4px effective via GAP)
+    ctx.fillStyle = "#121419"
+    ctx.fillRect(0, 0, W, H)
 
-    let loaded = 0
-    const total = Math.min(watched.length, cols * rows)
+    const cols = Math.ceil(W / STEP)
+    const rows = Math.ceil(H / STEP)
 
-    watched.slice(0, total).forEach((film, i) => {
-      const img = new Image()
-      img.crossOrigin = "anonymous"
-      img.onload = () => {
-        const col = i % cols
-        const row = Math.floor(i / cols)
-        ctx.drawImage(img, col * thumbSize, row * thumbSize, thumbSize, thumbSize * 1.5)
-        loaded++
-        if (loaded === total) {
-          setCollageUrl(canvas.toDataURL("image/jpeg", 0.85))
+    // Same-origin proxy so drawImage doesn't taint canvas (toDataURL works)
+    const proxied = (posterUrl: string) =>
+      `/api/poster-proxy?url=${encodeURIComponent(posterUrl)}`
+
+    const loadImage = (src: string): Promise<HTMLImageElement | null> =>
+      new Promise((resolve) => {
+        const img = new Image()
+        img.onload = () => resolve(img)
+        img.onerror = () => resolve(null)
+        img.src = proxied(src)
+      })
+
+    let cancelled = false
+    ;(async () => {
+      const loaded = await Promise.all(watched.map((f) => loadImage(f.poster)))
+      if (cancelled) return
+      const images = loaded.filter((img): img is HTMLImageElement => img != null)
+      if (images.length === 0) return
+
+      // Dense grid: every cell filled, cycle posters
+      let idx = 0
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const x = col * STEP
+          const y = row * STEP
+          const img = images[idx % images.length]
+          idx++
+          const iw = img.naturalWidth || img.width
+          const ih = img.naturalHeight || img.height
+          ctx.save()
+          ctx.beginPath()
+          ctx.rect(x, y, CELL, CELL)
+          ctx.clip()
+          const scale = Math.max(CELL / iw, CELL / ih)
+          const dw = iw * scale
+          const dh = ih * scale
+          ctx.drawImage(
+            img,
+            0,
+            0,
+            iw,
+            ih,
+            x + (CELL - dw) / 2,
+            y + (CELL - dh) / 2,
+            dw,
+            dh
+          )
+          ctx.restore()
         }
       }
-      img.onerror = () => {
-        loaded++
-        if (loaded === total) {
-          setCollageUrl(canvas.toDataURL("image/jpeg", 0.85))
-        }
+
+      // Mask: keep poster pixels only where text is (destination-in = dest kept where source opaque)
+      ctx.save()
+      ctx.globalCompositeOperation = "destination-in"
+      ctx.fillStyle = "#fff"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.font = `italic 900 ${Math.min(H * 0.92, 520)}px Georgia, "Times New Roman", serif`
+      ctx.fillText(String(count), W / 2, H / 2 + H * 0.02)
+      ctx.restore()
+
+      if (!cancelled) {
+        // PNG preserves transparency outside glyphs so page bg shows through
+        setCollageUrl(canvas.toDataURL("image/png"))
       }
-      img.src = film.poster
-    })
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [watched])
 
   // Column count for neighbor ripple calculation
@@ -291,7 +348,7 @@ export default function LibraryPage() {
     return (
       <main
         className="min-h-screen flex items-center justify-center"
-        style={{ background: "#080808" }}
+        style={{ background: "#121419" }}
       >
         <p
           style={{
@@ -310,7 +367,7 @@ export default function LibraryPage() {
   const showSpotlight = selectedLanguage === "All"
 
   return (
-    <main className="min-h-screen" style={{ background: "#080808" }}>
+    <main className="min-h-screen" style={{ background: "#121419" }}>
       <Link
         href="/home"
         style={{
@@ -329,43 +386,54 @@ export default function LibraryPage() {
         FDFS
       </Link>
 
-      <style>{`
-        @keyframes posterDrift {
-          0% { background-position: 0% 0%; }
-          50% { background-position: 100% 100%; }
-          100% { background-position: 0% 0%; }
-        }
-      `}</style>
+      {/* Cool-toned ambient gradient */}
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'radial-gradient(ellipse at 50% 30%, rgba(80,100,180,0.03) 0%, transparent 60%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
+
 
       <div
         style={{
           paddingTop: 100,
           paddingBottom: 40,
           textAlign: "center",
-          background: "#080808",
+          background: "#121419",
         }}
       >
-        <div
-          style={{
-            display: "inline-block",
-            fontSize: "clamp(160px, 28vw, 300px)",
-            fontWeight: 900,
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontStyle: "italic",
-            lineHeight: 0.85,
-            WebkitTextFillColor: collageUrl ? "transparent" : undefined,
-            WebkitBackgroundClip: collageUrl ? "text" : undefined,
-            backgroundClip: collageUrl ? "text" : undefined,
-            backgroundImage: collageUrl ? `url(${collageUrl})` : "none",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            color: collageUrl ? "transparent" : "rgba(255,255,255,0.5)",
-            filter: collageUrl ? "saturate(1.2) contrast(1.05)" : "none",
-            animation: collageUrl ? "posterDrift 20s ease-in-out infinite" : "none",
-          }}
-        >
-          {watched.length}
-        </div>
+        {/* Mosaic is pre-masked in canvas (destination-in); display as image — no background-clip */}
+        {collageUrl ? (
+          <img
+            src={collageUrl}
+            alt={`${watched.length} films`}
+            style={{
+              display: "block",
+              margin: "0 auto",
+              maxWidth: "min(95vw, 900px)",
+              width: "auto",
+              height: "auto",
+              imageRendering: "auto",
+              filter: "saturate(1.1) contrast(1.06)",
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              display: "inline-block",
+              fontSize: "clamp(160px, 28vw, 300px)",
+              fontWeight: 900,
+              fontFamily: 'Georgia, "Times New Roman", serif',
+              fontStyle: "italic",
+              lineHeight: 0.85,
+              color: "rgba(255,255,255,0.5)",
+            }}
+          >
+            {watched.length}
+          </div>
+        )}
 
         <p
           style={{
@@ -392,7 +460,7 @@ export default function LibraryPage() {
           gap: 6,
           padding: "16px 0",
           background:
-            "linear-gradient(to bottom, #080808 0%, #080808 60%, transparent 100%)",
+            "linear-gradient(to bottom, #121419 0%, #121419 60%, transparent 100%)",
         }}
       >
         {languages.map((lang) => (
@@ -412,7 +480,7 @@ export default function LibraryPage() {
               padding: "6px 14px",
               border:
                 selectedLanguage === lang
-                  ? "1px solid rgba(255,255,255,0.2)"
+                  ? "1px solid rgba(255,255,255,0.15)"
                   : "1px solid transparent",
               borderRadius: 999,
               background:
@@ -420,7 +488,7 @@ export default function LibraryPage() {
                   ? "rgba(255,255,255,0.06)"
                   : "transparent",
               cursor: "pointer",
-              transition: "all 0.3s ease",
+              transition: "all 0.35s ease-out",
             }}
           >
             {lang}
@@ -487,7 +555,7 @@ export default function LibraryPage() {
                 position: "absolute",
                 inset: 0,
                 background:
-                  "radial-gradient(circle 250px at var(--mouse-x, 50%) var(--mouse-y, 50%), transparent 0%, rgba(0,0,0,0.55) 100%)",
+                  "radial-gradient(circle 250px at var(--mouse-x, 50%) var(--mouse-y, 50%), transparent 0%, rgba(10,12,18,0.55) 100%)",
                 pointerEvents: "none",
                 zIndex: 20,
               }}
@@ -500,7 +568,7 @@ export default function LibraryPage() {
         style={{
           padding: "80px 0",
           textAlign: "center",
-          background: "#080808",
+          background: "#121419",
         }}
       >
         <p
@@ -508,7 +576,7 @@ export default function LibraryPage() {
             fontFamily: "Georgia, serif",
             fontSize: 13,
             fontStyle: "italic",
-            color: "rgba(255,255,255,0.15)",
+            color: "rgba(255,255,255,0.12)",
           }}
         >
           The reel keeps rolling.

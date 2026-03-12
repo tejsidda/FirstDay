@@ -4,8 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
-import { getWatchlist, getWatched, addToWatchlist } from "@/lib/db"
-import { Movie } from "@/lib/types"
+import {
+  getWatchlist,
+  getWatched,
+  addToWatchlist,
+  markRecommendationShown,
+} from "@/lib/db"
+import { getRecommendations, refreshRecommendations } from "@/lib/recommend"
+import { Movie, type Recommendation } from "@/lib/types"
 
 function PolaroidCard({
   film,
@@ -40,13 +46,13 @@ function PolaroidCard({
       <div
         style={{
           background: hovered
-            ? "rgba(255,255,255,0.08)"
-            : "rgba(255,255,255,0.03)",
+            ? "rgba(255,255,255,0.07)"
+            : "rgba(255,255,255,0.04)",
           padding: "10px 10px 40px 10px",
           borderRadius: 4,
           boxShadow: hovered
-            ? "0 20px 50px rgba(0,0,0,0.7), 0 0 1px rgba(255,255,255,0.1)"
-            : "0 4px 16px rgba(0,0,0,0.5)",
+            ? "0 20px 50px rgba(17,17,20,0.7), 0 0 1px rgba(255,255,255,0.08)"
+            : "0 4px 16px rgba(17,17,20,0.5)",
           transition: "all 0.4s ease",
         }}
       >
@@ -114,19 +120,55 @@ export default function HomeContent() {
   const [titleRevealed, setTitleRevealed] = useState(0)
   const [introComplete, setIntroComplete] = useState(false)
   const [creditsPaused, setCreditsPaused] = useState(false)
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
+  const [recsLoading, setRecsLoading] = useState(false)
   const router = useRouter()
   const ambientCacheRef = useRef<Record<string, [number, number, number]>>({})
 
   useEffect(() => {
     async function loadData() {
       setLoading(true)
-      const [w, r] = await Promise.all([getWatchlist(), getWatched()])
-      setWatchlist(w)
-      setWatched(r)
+      const [wl, w] = await Promise.all([getWatchlist(), getWatched()])
+      setWatchlist(wl)
+      setWatched(w)
       setLoading(false)
     }
     loadData()
   }, [])
+
+  const loadRecommendations = async () => {
+    if (watched.length < 3) return
+    setRecsLoading(true)
+    try {
+      const recs = await getRecommendations(watched, watchlist)
+      setRecommendations(recs)
+    } finally {
+      setRecsLoading(false)
+    }
+  }
+
+  const handleRefreshRecommendations = async () => {
+    if (watched.length < 3) return
+    setRecsLoading(true)
+    try {
+      const recs = await refreshRecommendations(watched, watchlist)
+      setRecommendations(recs)
+    } finally {
+      setRecsLoading(false)
+    }
+  }
+
+  /** After marking one shown, reload up to 5 unshown (no API if enough remain in batch). */
+  const reloadRecsAfterInteraction = async (shownId: string) => {
+    await markRecommendationShown(shownId)
+    setRecsLoading(true)
+    try {
+      const recs = await getRecommendations(watched, watchlist)
+      setRecommendations(recs)
+    } finally {
+      setRecsLoading(false)
+    }
+  }
 
   const heroMovie = watchlist[0] || watched[0] || null
 
@@ -167,7 +209,7 @@ export default function HomeContent() {
     return (
       <main
         className="relative text-white min-h-screen flex items-center justify-center"
-        style={{ background: "#080808" }}
+        style={{ background: "#111114" }}
       >
         <p
           style={{
@@ -186,7 +228,7 @@ export default function HomeContent() {
   return (
     <main
       className="relative text-white"
-      style={{ background: "#080808", minHeight: "100vh" }}
+      style={{ background: "#111114", minHeight: "100vh" }}
     >
       <style>{`
         @keyframes fadeIn {
@@ -203,6 +245,21 @@ export default function HomeContent() {
       `}</style>
 
       <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
+
+      {/* Ambient orb */}
+      <div style={{
+        position: 'fixed',
+        top: '20%',
+        left: '50%',
+        width: 600,
+        height: 600,
+        transform: 'translateX(-50%)',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(255,255,255,0.035) 0%, transparent 70%)',
+        animation: 'ambientDrift 25s ease-in-out infinite',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
 
       {/* Section 1: The Opening */}
       <section
@@ -223,7 +280,7 @@ export default function HomeContent() {
               backgroundImage: `url(${heroMovie.poster})`,
               backgroundSize: "cover",
               backgroundPosition: "center",
-              filter: "blur(50px) saturate(1.5) brightness(0.4)",
+              filter: "blur(50px) saturate(1.5) brightness(0.35)",
               transform: "scale(1.5)",
               animation: "fadeIn 2s ease-out forwards",
               opacity: 0,
@@ -236,7 +293,7 @@ export default function HomeContent() {
             position: "absolute",
             inset: 0,
             background:
-              "radial-gradient(ellipse at center, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.7) 100%)",
+              "radial-gradient(ellipse at center, rgba(17,17,20,0.3) 0%, rgba(17,17,20,0.7) 100%)",
           }}
         />
 
@@ -346,7 +403,7 @@ export default function HomeContent() {
           style={{
             position: "relative",
             padding: "80px 48px 100px",
-            background: "#080808",
+            background: "#111114",
             minHeight: "80vh",
           }}
         >
@@ -357,7 +414,7 @@ export default function HomeContent() {
                 fontSize: 32,
                 fontWeight: 400,
                 fontStyle: "italic",
-                color: "rgba(255,255,255,0.8)",
+                color: "rgba(255,255,255,0.9)",
               }}
             >
               recently watched
@@ -423,13 +480,297 @@ export default function HomeContent() {
         </section>
       )}
 
+      {/* Recommendations — Supabase-backed batch; 5 slots, dismiss/add marks shown */}
+      {watched.length >= 3 && (
+        <section
+          style={{
+            padding: "80px 48px",
+            background: "#080808",
+            position: "relative",
+          }}
+        >
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 16,
+                flexWrap: "wrap",
+              }}
+            >
+              <h2
+                style={{
+                  fontFamily: "Georgia, serif",
+                  fontSize: 28,
+                  fontWeight: 400,
+                  fontStyle: "italic",
+                  color: "rgba(255,255,255,0.8)",
+                  margin: 0,
+                }}
+              >
+                picked for you
+              </h2>
+              {recommendations.length > 0 && !recsLoading && (
+                <button
+                  type="button"
+                  onClick={() => handleRefreshRecommendations()}
+                  style={{
+                    fontFamily: "-apple-system, sans-serif",
+                    fontSize: 11,
+                    color: "rgba(255,255,255,0.35)",
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: 6,
+                    padding: "6px 12px",
+                    cursor: "pointer",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "rgba(255,255,255,0.55)"
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "rgba(255,255,255,0.35)"
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"
+                  }}
+                >
+                  Refresh recommendations
+                </button>
+              )}
+            </div>
+            <p
+              style={{
+                fontFamily: "Georgia, serif",
+                fontSize: 13,
+                fontStyle: "italic",
+                color: "rgba(255,255,255,0.25)",
+                marginTop: 8,
+              }}
+            >
+              based on your taste
+            </p>
+          </div>
+
+          {recommendations.length === 0 && !recsLoading && (
+            <div style={{ textAlign: "center" }}>
+              <button
+                type="button"
+                onClick={() => loadRecommendations()}
+                style={{
+                  fontFamily: "Georgia, serif",
+                  fontSize: 15,
+                  fontStyle: "italic",
+                  color: "rgba(255,255,255,0.5)",
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 999,
+                  padding: "14px 32px",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "rgba(255,255,255,0.75)"
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "rgba(255,255,255,0.5)"
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"
+                }}
+              >
+                Get personalized recommendations
+              </button>
+            </div>
+          )}
+
+          {recsLoading ? (
+            <div style={{ textAlign: "center" }}>
+              <p
+                style={{
+                  fontFamily: "Georgia, serif",
+                  fontSize: 14,
+                  fontStyle: "italic",
+                  color: "rgba(255,255,255,0.2)",
+                }}
+              >
+                Finding films you&apos;ll love...
+              </p>
+            </div>
+          ) : recommendations.length > 0 ? (
+            <div
+              style={{
+                display: "flex",
+                gap: 32,
+                justifyContent: "center",
+                flexWrap: "wrap",
+                maxWidth: 1100,
+                marginLeft: "auto",
+                marginRight: "auto",
+              }}
+            >
+              {recommendations.map((rec, i) => (
+                <div
+                  key={rec.id || `${rec.tmdbId}-${i}`}
+                  style={{
+                    width: 180,
+                    transition: "transform 0.3s ease",
+                    position: "relative",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.transform = "translateY(-8px)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.transform = "translateY(0)")
+                  }
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      reloadRecsAfterInteraction(rec.id)
+                    }}
+                    style={{
+                      position: "absolute",
+                      top: 4,
+                      right: 4,
+                      zIndex: 2,
+                      fontFamily: "-apple-system, sans-serif",
+                      fontSize: 9,
+                      color: "rgba(255,255,255,0.45)",
+                      background: "rgba(0,0,0,0.5)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 4,
+                      padding: "4px 8px",
+                      cursor: "pointer",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    Not interested
+                  </button>
+                  <div
+                    onClick={async () => {
+                      const movie: Movie = {
+                        id: String(rec.tmdbId),
+                        title: rec.title,
+                        year: rec.year,
+                        language: rec.language,
+                        poster: rec.poster,
+                        backdrop: rec.backdrop || undefined,
+                      }
+                      const success = await addToWatchlist(movie)
+                      if (success) {
+                        setWatchlist((prev) => [movie, ...prev])
+                        await reloadRecsAfterInteraction(rec.id)
+                      }
+                    }}
+                    style={{ cursor: "pointer" }}
+                  >
+                  <div
+                    style={{
+                      aspectRatio: "2/3",
+                      borderRadius: 8,
+                      overflow: "hidden",
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                      marginBottom: 12,
+                    }}
+                  >
+                    {rec.poster ? (
+                      <img
+                        src={rec.poster}
+                        alt={rec.title}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          display: "block",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          background:
+                            "linear-gradient(145deg, #1a1a2d, #0a0a14)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: "rgba(255,255,255,0.2)",
+                            fontSize: 12,
+                          }}
+                        >
+                          No poster
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "Georgia, serif",
+                      fontSize: 14,
+                      fontWeight: 400,
+                      fontStyle: "italic",
+                      color: "rgba(255,255,255,0.8)",
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {rec.title}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "-apple-system, sans-serif",
+                      fontSize: 11,
+                      color: "rgba(255,255,255,0.3)",
+                      marginTop: 4,
+                    }}
+                  >
+                    {rec.language} · {rec.year}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "Georgia, serif",
+                      fontSize: 11,
+                      fontStyle: "italic",
+                      color: "rgba(255,255,255,0.35)",
+                      marginTop: 8,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    &ldquo;{rec.reason}&rdquo;
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "-apple-system, sans-serif",
+                      fontSize: 9,
+                      color: "rgba(255,255,255,0.15)",
+                      marginTop: 8,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                    }}
+                  >
+                    Click to add to watchlist
+                  </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      )}
+
       {/* Section 3: Want to Watch — End Credits Scroll */}
       {watchlist.length > 0 && (
         <section
           style={{
             position: "relative",
             padding: "60px 0",
-            background: "#080808",
+            background: "#111114",
             overflow: "hidden",
             minHeight: "60vh",
           }}
@@ -441,7 +782,7 @@ export default function HomeContent() {
                 fontSize: 32,
                 fontWeight: 400,
                 fontStyle: "italic",
-                color: "rgba(255,255,255,0.8)",
+                color: "rgba(255,255,255,0.9)",
               }}
             >
               want to watch
@@ -466,7 +807,7 @@ export default function HomeContent() {
               left: 0,
               right: 0,
               height: 80,
-              background: "linear-gradient(to bottom, #080808, transparent)",
+              background: "linear-gradient(to bottom, #111114, transparent)",
               zIndex: 5,
               pointerEvents: "none",
             }}
@@ -478,7 +819,7 @@ export default function HomeContent() {
               left: 0,
               right: 0,
               height: 80,
-              background: "linear-gradient(to top, #080808, transparent)",
+              background: "linear-gradient(to top, #111114, transparent)",
               zIndex: 5,
               pointerEvents: "none",
             }}
@@ -495,7 +836,10 @@ export default function HomeContent() {
           >
             <div
               style={{
-                animation: `creditsScroll ${Math.max(watchlist.length * 4, 12)}s linear infinite`,
+                animationName: "creditsScroll",
+                animationDuration: `${Math.max(watchlist.length * 4, 12)}s`,
+                animationTimingFunction: "linear",
+                animationIterationCount: "infinite",
                 animationPlayState: creditsPaused ? "paused" : "running",
                 display: "flex",
                 flexDirection: "column",
@@ -599,7 +943,7 @@ export default function HomeContent() {
         style={{
           padding: "80px 48px",
           textAlign: "center",
-          background: "#080808",
+          background: "#111114",
         }}
       >
         <p
@@ -621,8 +965,8 @@ export default function HomeContent() {
             fontSize: 15,
             fontStyle: "italic",
             color: "rgba(255,255,255,0.3)",
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.06)",
             borderRadius: 999,
             padding: "14px 40px",
             cursor: "pointer",
@@ -635,7 +979,7 @@ export default function HomeContent() {
             e.currentTarget.style.color = "rgba(255,255,255,0.6)"
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"
+            e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"
             e.currentTarget.style.color = "rgba(255,255,255,0.3)"
           }}
         >
@@ -648,14 +992,14 @@ export default function HomeContent() {
         style={{
           padding: "60px 48px 40px",
           textAlign: "center",
-          background: "#080808",
+          background: "#111114",
         }}
       >
         <div
           style={{
             width: 30,
             height: 1,
-            background: "rgba(255,255,255,0.06)",
+            background: "rgba(255,255,255,0.05)",
             margin: "0 auto 24px",
           }}
         />

@@ -185,8 +185,8 @@ export default function LandingPage() {
 
   return (
     <main
-      className="relative h-screen w-screen overflow-hidden bg-black text-white"
-      style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+      className="relative h-screen w-screen overflow-hidden text-white"
+      style={{ fontFamily: 'Georgia, "Times New Roman", serif', background: '#0D0D0F' }}
       onClick={handleMainClick}
     >
       {/* Background: poster grid. Change opacity-[0.06] for stronger/softer posters; kenburns = slow zoom/drift (see CSS). */}
@@ -206,7 +206,7 @@ export default function LandingPage() {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(ellipse at center, rgba(212,175,55,0.02) 0%, transparent 60%), radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.75) 78%, #000 100%)",
+              "radial-gradient(ellipse at center, rgba(212,175,55,0.02) 0%, transparent 60%), radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.75) 78%, #0D0D0F 100%)",
           }}
         />
       </div>
@@ -298,9 +298,9 @@ export default function LandingPage() {
                 <div className="w-full md:w-1/2 md:pr-16 md:pl-8 px-2">
                   <div className="flex md:h-[70vh] flex-col justify-center md:items-start items-center">
                     <div
-                      className="w-full max-w-[400px] rounded-[14px] border border-[rgba(255,255,255,0.06)] px-9 py-11 shadow-[0_20px_60px_rgba(0,0,0,0.5)] login-card-appear"
+                      className="w-full max-w-[400px] rounded-[14px] border border-[rgba(255,255,255,0.05)] px-9 py-11 shadow-[0_20px_60px_rgba(0,0,0,0.5)] login-card-appear"
                       style={{
-                        background: "rgba(18, 16, 12, 0.7)",
+                        background: "rgba(20, 20, 24, 0.7)",
                         backdropFilter: "blur(20px)",
                       }}
                       onClick={(e) => e.stopPropagation()}
@@ -324,7 +324,7 @@ export default function LandingPage() {
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="&quot;What's in a name?&quot;"
-                          className="fdfs-input w-full rounded-[8px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-[14px] py-3 text-[14px] text-[rgba(255,255,255,0.8)] outline-none"
+                          className="fdfs-input w-full rounded-[8px] border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] px-[14px] py-3 text-[14px] text-[rgba(255,255,255,0.8)] outline-none"
                           onClick={(e) => e.stopPropagation()}
                         />
 
@@ -337,7 +337,7 @@ export default function LandingPage() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="&quot;I see dead passwords.&quot;"
-                            className="fdfs-input w-full rounded-[8px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-[14px] py-3 text-[14px] text-[rgba(255,255,255,0.8)] outline-none"
+                            className="fdfs-input w-full rounded-[8px] border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] px-[14px] py-3 text-[14px] text-[rgba(255,255,255,0.8)] outline-none"
                             onClick={(e) => e.stopPropagation()}
                           />
                         </div>

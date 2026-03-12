@@ -1,13 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #000000;
-  --foreground: #ffffff;
-  --foreground-secondary: rgba(255, 255, 255, 0.5);
-  --foreground-tertiary: rgba(255, 255, 255, 0.35);
-  --border: rgba(255, 255, 255, 0.06);
-  --hover-bg: rgba(255, 255, 255, 0.05);
-  --accent-amber: #f59e0b;
+  --background: #0D0D0F;
+  --foreground: rgba(255, 255, 255, 0.9);
+  --foreground-secondary: rgba(255, 255, 255, 0.6);
+  --foreground-tertiary: rgba(255, 255, 255, 0.4);
+  --border: rgba(255, 255, 255, 0.05);
+  --hover-bg: rgba(255, 255, 255, 0.04);
+  --accent-amber: #f5c518;
+  --surface-elevated: #1A1A1F;
+  --surface-subtle: #2A2A32;
 }
 
 @theme inline {
@@ -23,8 +25,37 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.3) 100%);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  opacity: 0.02;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px 128px;
+  pointer-events: none;
+  z-index: 9999;
+}
+
 button, a, [role="button"] {
-  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  transition: background-color 0.3s ease, color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+@keyframes ambientDrift {
+  0% { transform: translate(0%, 0%) scale(1); }
+  25% { transform: translate(5%, -3%) scale(1.05); }
+  50% { transform: translate(-3%, 5%) scale(0.95); }
+  75% { transform: translate(-5%, -2%) scale(1.03); }
+  100% { transform: translate(0%, 0%) scale(1); }
 }
 
 .scrollbar-hide::-webkit-scrollbar {
