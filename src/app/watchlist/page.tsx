@@ -7,8 +7,10 @@ import {
   getWatchlist,
   markAsWatched,
   removeFromWatchlist,
+  updateWatchedRating,
 } from "@/lib/db"
 import type { Movie } from "@/lib/types"
+import StandingOvationInput from "@/components/StandingOvationInput"
 
 const DEFAULT_AMBIENT: [number, number, number] = [45, 38, 28]
 
@@ -241,7 +243,10 @@ export default function WatchlistPage() {
 
   const handleMarkWatched = async (film: Movie, rating: number) => {
     setActionLoading(true)
-    const success = await markAsWatched(film, rating)
+    let success = await markAsWatched(film, rating)
+    if (!success) {
+      success = await updateWatchedRating(film.id, rating)
+    }
     if (success) {
       const updated = watchlist.filter((m) => m.id !== film.id)
       setWatchlist(updated)
@@ -798,45 +803,13 @@ export default function WatchlistPage() {
                     gap: 12,
                   }}
                 >
-                  <p
-                    style={{
-                      fontFamily: "Georgia, serif",
-                      fontSize: 13,
-                      fontStyle: "italic",
-                      color: "rgba(255,255,255,0.4)",
-                    }}
-                  >
-                    How was it?
-                  </p>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleMarkWatched(watchlist[centeredIndex], star)
-                        }}
-                        style={{
-                          fontSize: 28,
-                          color: "#f5c518",
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          padding: "4px 6px",
-                          transition: "transform 0.15s ease",
-                          lineHeight: 1,
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.transform = "scale(1.3)")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.transform = "scale(1)")
-                        }
-                      >
-                        ★
-                      </button>
-                    ))}
+                  <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+                    <StandingOvationInput
+                      value={null}
+                      onChange={(r) => {
+                        handleMarkWatched(watchlist[centeredIndex], r)
+                      }}
+                    />
                   </div>
                   <button
                     type="button"

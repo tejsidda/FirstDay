@@ -10,7 +10,10 @@ function rowToMovie(row: any): Movie {
     language: row.language,
     poster: row.poster,
     backdrop: row.backdrop || undefined,
-    rating: row.rating || undefined,
+    rating:
+      row.rating != null && row.rating !== ""
+        ? Number(row.rating)
+        : undefined,
     reviewHeadline: row.review_headline || undefined,
     reviewBody: row.review_body || undefined,
   }
@@ -80,6 +83,7 @@ export async function getWatched(): Promise<Movie[]> {
   return (data || []).map(rowToMovie)
 }
 
+/** rating: 1–10, supports 0.5 (e.g. 7.5) */
 export async function markAsWatched(movie: Movie, rating: number): Promise<boolean> {
   // Check for duplicates
   const { data: existing } = await supabase
@@ -106,6 +110,22 @@ export async function markAsWatched(movie: Movie, rating: number): Promise<boole
   }
   // Remove from watchlist (if it was there)
   await supabase.from("watchlist").delete().eq("tmdb_id", movie.id)
+  return true
+}
+
+/** Update rating for an already-watched film (e.g. 7 → 7.5) */
+export async function updateWatchedRating(
+  tmdbId: string,
+  rating: number
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("watched")
+    .update({ rating })
+    .eq("tmdb_id", tmdbId)
+  if (error) {
+    console.error("Error updating rating:", error.message)
+    return false
+  }
   return true
 }
 

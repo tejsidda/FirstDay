@@ -3,6 +3,8 @@
 import Link from "next/link"
 import { useState } from "react"
 import { Movie } from "@/lib/types"
+import RatingDisplay from "@/components/RatingDisplay"
+import StandingOvationInput from "@/components/StandingOvationInput"
 
 type Size = "large" | "small"
 
@@ -26,7 +28,7 @@ export default function MoviePosterCard({
   onMarkWatched,
   onRemove,
 }: {
-  movie: Movie & { rating?: number }
+  movie: Movie & { rating?: number | null }
   size?: Size
   showRating?: boolean
   onMarkWatched?: (movie: Movie, rating: number) => void
@@ -135,36 +137,26 @@ export default function MoviePosterCard({
                 )}
               </div>
             ) : (
-              /* Rating picker — shows after clicking checkmark */
-              <div className="relative z-10 flex flex-col items-center gap-2">
-                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", fontFamily: "Georgia, serif" }}>
-                  Rate this film
+              <div
+                className="relative z-10 flex max-w-[min(100%,360px)] flex-col items-center gap-2 px-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p
+                  style={{
+                    fontSize: 11,
+                    color: "rgba(255,255,255,0.5)",
+                    fontFamily: "Georgia, serif",
+                  }}
+                >
+                  Standing ovation?
                 </p>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        onMarkWatched?.(movie, star)
-                        setShowRatingPicker(false)
-                      }}
-                      className="transition-transform duration-150 hover:scale-125"
-                      style={{
-                        fontSize: 22,
-                        color: "#f5c518",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: "2px 3px",
-                      }}
-                    >
-                      ★
-                    </button>
-                  ))}
-                </div>
+                <StandingOvationInput
+                  value={null}
+                  onChange={(r) => {
+                    onMarkWatched?.(movie, r)
+                    setShowRatingPicker(false)
+                  }}
+                />
               </div>
             )}
           </div>
@@ -183,13 +175,8 @@ export default function MoviePosterCard({
         )}
 
         {hasRating && (
-          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-[6px] bg-black/60 px-2 py-1 text-[11px] backdrop-blur-[4px]">
-            <span className="font-medium" style={{ color: "#f5c518" }}>
-              ★
-            </span>
-            <span className="font-medium" style={{ color: "#f5c518" }}>
-              {movie.rating}
-            </span>
+          <div className="absolute left-2 top-2 rounded-[6px] bg-black/60 px-2 py-1 backdrop-blur-[4px]">
+            <RatingDisplay rating={movie.rating!} size="sm" />
           </div>
         )}
       </div>

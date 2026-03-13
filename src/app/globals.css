@@ -65,3 +65,48 @@ button, a, [role="button"] {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Standing ovation rating slider */
+.ovation-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.ovation-slider::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    rgba(92, 92, 102, 0.6) 0%,
+    rgba(168, 163, 152, 0.35) 50%,
+    rgba(246, 197, 71, 0.25) 100%
+  );
+}
+.ovation-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  border: 2px solid rgba(246, 197, 71, 0.4);
+  margin-top: -7px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+.ovation-slider::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    rgba(92, 92, 102, 0.6) 0%,
+    rgba(168, 163, 152, 0.35) 50%,
+    rgba(246, 197, 71, 0.25) 100%
+  );
+}
+.ovation-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  border: 2px solid rgba(246, 197, 71, 0.4);
+}

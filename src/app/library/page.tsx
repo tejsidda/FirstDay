@@ -1,10 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getWatched } from "@/lib/db"
 import type { Movie } from "@/lib/types"
+import RatingDisplay from "@/components/RatingDisplay"
 
 function WallPoster({
   film,
@@ -25,8 +26,8 @@ function WallPoster({
 }) {
   const [hovered, setHovered] = useState(false)
 
-  const scale = hovered ? 1.08 : isNeighbor ? 1.02 : 1
-  const z = hovered ? 30 : isNeighbor ? 2 : 1
+  const scale = hovered ? 1.04 : isNeighbor ? 1.01 : 1
+  const z = hovered ? 12 : isNeighbor ? 1 : 0
 
   let filterVal = "brightness(1)"
   if (isFiltered) filterVal = "brightness(0.15) saturate(0)"
@@ -45,7 +46,7 @@ function WallPoster({
         transition: "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
         transform: `scale(${scale}) translateX(${parallaxOffset}px)`,
         zIndex: z,
-        boxShadow: hovered ? "0 20px 60px rgba(10,12,18,0.8)" : "none",
+        boxShadow: hovered ? "0 12px 36px rgba(10,12,18,0.5)" : "none",
         filter: filterVal,
       }}
     >
@@ -104,19 +105,16 @@ function WallPoster({
           {film.language} · {film.year}
         </div>
 
-        {film.rating && (
+        {film.rating != null && (
           <div
             style={{
-              color: "#f5c518",
-              fontSize: 10,
               opacity: hovered ? 1 : 0,
               transform: hovered ? "translateY(0)" : "translateY(8px)",
               transition: "opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s",
               marginTop: 4,
             }}
           >
-            {"★".repeat(film.rating)}
-            {"☆".repeat(5 - film.rating)}
+            <RatingDisplay rating={film.rating} size="sm" />
           </div>
         )}
 
@@ -165,9 +163,7 @@ export default function LibraryPage() {
   const [scrollY, setScrollY] = useState(0)
   const [collageUrl, setCollageUrl] = useState<string | null>(null)
   const router = useRouter()
-  const wallRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
-  const spotlightRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let active = true
@@ -300,9 +296,10 @@ export default function LibraryPage() {
       rafId = requestAnimationFrame(() => {
         const centerX = window.innerWidth / 2
         const centerY = window.innerHeight / 2
+        // Subtle tilt only — was ±3deg, now ~±0.9deg max
         setTilt({
-          x: ((e.clientY - centerY) / centerY) * -3,
-          y: ((e.clientX - centerX) / centerX) * 3,
+          x: ((e.clientY - centerY) / centerY) * -0.9,
+          y: ((e.clientX - centerX) / centerX) * 0.9,
         })
         rafId = null
       })
@@ -331,14 +328,6 @@ export default function LibraryPage() {
     }
   }, [])
 
-  // Spotlight — updates CSS custom properties directly to avoid re-renders
-  const handleWallMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!spotlightRef.current) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    spotlightRef.current.style.setProperty("--mouse-x", `${e.clientX - rect.left}px`)
-    spotlightRef.current.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`)
-  }, [])
-
   const languages = [
     "All",
     ...Array.from(new Set(watched.map((m) => m.language).filter(Boolean))).sort(),
@@ -363,8 +352,6 @@ export default function LibraryPage() {
       </main>
     )
   }
-
-  const showSpotlight = selectedLanguage === "All"
 
   return (
     <main className="min-h-screen" style={{ background: "#121419" }}>
@@ -496,15 +483,18 @@ export default function LibraryPage() {
         ))}
       </div>
 
-      {/* 3D perspective wrapper */}
-      <div style={{ perspective: "1200px", perspectiveOrigin: "50% 50%" }}>
+      {/* Light depth — high perspective + small rotate = barely there 3D */}
+      <div
+        style={{
+          perspective: "3200px",
+          perspectiveOrigin: "50% 45%",
+        }}
+      >
         <div
-          ref={wallRef}
-          onMouseMove={handleWallMouseMove}
           style={{
             position: "relative",
             transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-            transition: "transform 0.15s ease-out",
+            transition: "transform 0.35s ease-out",
             transformStyle: "preserve-3d",
           }}
         >
@@ -519,7 +509,8 @@ export default function LibraryPage() {
           >
             {watched.map((film, i) => {
               const row = Math.floor(i / columns)
-              const parallaxOffset = row % 2 === 0 ? scrollY * 0.02 : scrollY * -0.02
+              const parallaxOffset =
+                row % 2 === 0 ? scrollY * 0.006 : scrollY * -0.006
 
               const isNeighbor =
                 hoveredIndex !== null &&
@@ -546,21 +537,6 @@ export default function LibraryPage() {
               )
             })}
           </div>
-
-          {/* Spotlight overlay */}
-          {showSpotlight && (
-            <div
-              ref={spotlightRef}
-              style={{
-                position: "absolute",
-                inset: 0,
-                background:
-                  "radial-gradient(circle 250px at var(--mouse-x, 50%) var(--mouse-y, 50%), transparent 0%, rgba(10,12,18,0.55) 100%)",
-                pointerEvents: "none",
-                zIndex: 20,
-              }}
-            />
-          )}
         </div>
       </div>
 

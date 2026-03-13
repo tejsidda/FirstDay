@@ -18,7 +18,8 @@ export type Movie = {
   language: string
   poster: string
   backdrop?: string
-  rating?: number
+  /** 1–10 scale, 0.5 increments; omit or null if unrated */
+  rating?: number | null
   reviewHeadline?: string
   reviewBody?: string
 }

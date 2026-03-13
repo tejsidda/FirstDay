@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { getMovieCredits, getMovieImages, getPersonFilmography, getMovieKeywords, posterURL } from "@/lib/tmdb"
 import { updateReview } from "@/lib/db"
+import RatingDisplay from "@/components/RatingDisplay"
 
 const LANG_MAP: Record<string, string> = {
   ml: "Malayalam", ko: "Korean", te: "Telugu", ta: "Tamil",
@@ -21,14 +22,18 @@ function monthYear(date?: string) {
   return d.toLocaleDateString("en-US", { month: "long", year: "numeric" })
 }
 
-function defaultHeadlineForRating(rating?: number, isWatchlisted?: boolean) {
-  if (rating === 5) return "A MASTERPIECE"
-  if (rating === 4) return "WORTH EVERY MINUTE"
-  if (rating === 3) return "IT HAD ITS MOMENTS"
-  if (rating === 2) return "NOT QUITE THERE"
-  if (rating === 1) return "NOT FOR ME"
-  if (isWatchlisted) return "ON YOUR WATCHLIST"
-  return ""
+/** 1–10 scale headlines (bands include .5) */
+function defaultHeadlineForRating(rating?: number | null, isWatchlisted?: boolean) {
+  if (rating == null || Number.isNaN(rating)) {
+    if (isWatchlisted) return "ON YOUR WATCHLIST"
+    return ""
+  }
+  const r = Math.max(1, Math.min(10, rating))
+  if (r >= 9) return "A MASTERPIECE"
+  if (r >= 7) return "WORTH EVERY MINUTE"
+  if (r >= 5) return "IT HAD ITS MOMENTS"
+  if (r >= 3) return "NOT QUITE THERE"
+  return "NOT FOR ME"
 }
 
 export default function MovieDetailPage() {
@@ -182,10 +187,6 @@ export default function MovieDetailPage() {
     (dbRecord?.review_headline as string | undefined) ||
     defaultHeadlineForRating(dbRecord?.rating, isWatchlisted)
 
-  const ratingStars =
-    typeof dbRecord?.rating === "number"
-      ? "★".repeat(Math.max(0, Math.min(5, dbRecord.rating)))
-      : null
 
   const posterSrc =
     dbRecord?.poster ||
@@ -526,9 +527,8 @@ export default function MovieDetailPage() {
               Rating
             </div>
             {typeof dbRecord?.rating === "number" ? (
-              <div style={{ color: "#f5c518", fontSize: 14, marginTop: 8 }}>
-                {"★".repeat(Math.max(0, Math.min(5, dbRecord.rating)))}
-                {"☆".repeat(5 - Math.max(0, Math.min(5, dbRecord.rating)))}
+              <div style={{ marginTop: 8 }}>
+                <RatingDisplay rating={dbRecord.rating} size="md" />
               </div>
             ) : (
               <div style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 14, fontWeight: 400, color: "rgba(255,255,255,0.5)", marginTop: 8, fontStyle: "italic" }}>

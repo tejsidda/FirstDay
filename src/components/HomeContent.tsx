@@ -12,6 +12,7 @@ import {
 } from "@/lib/db"
 import { getRecommendations, refreshRecommendations } from "@/lib/recommend"
 import { Movie, type Recommendation } from "@/lib/types"
+import RatingDisplay from "@/components/RatingDisplay"
 
 function PolaroidCard({
   film,
@@ -93,17 +94,15 @@ function PolaroidCard({
           >
             {film.title}
           </div>
-          {film.rating && (
+          {film.rating != null && (
             <div
               style={{
-                fontSize: 9,
-                color: "#f5c518",
                 marginTop: 2,
                 opacity: hovered ? 1 : 0.5,
                 transition: "opacity 0.3s ease",
               }}
             >
-              {"★".repeat(film.rating)}
+              <RatingDisplay rating={film.rating} size="sm" />
             </div>
           )}
         </div>

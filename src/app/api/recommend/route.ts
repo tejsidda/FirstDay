@@ -84,10 +84,10 @@ export async function POST(request: Request) {
 
     // Step 3: Prompt for Claude
     const userProfile = watched
-      .filter((m: { rating?: number }) => m.rating && m.rating >= 4)
+      .filter((m: { rating?: number }) => m.rating != null && m.rating >= 8)
       .slice(0, 10)
       .map((m: { title: string; language?: string; year?: number; rating?: number; reviewHeadline?: string }) => {
-        let line = `- "${m.title}" (${m.language}, ${m.year}) — rated ${m.rating}/5`
+        let line = `- "${m.title}" (${m.language}, ${m.year}) — rated ${m.rating}/10`
         if (m.reviewHeadline) line += ` — "${m.reviewHeadline}"`
         return line
       })
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
         .slice(0, 10)
         .map((m: { title: string; language?: string; year?: number; rating?: number; reviewHeadline?: string }) => {
           let line = `- "${m.title}" (${m.language}, ${m.year})`
-          if (m.rating) line += ` — rated ${m.rating}/5`
+          if (m.rating != null) line += ` — rated ${m.rating}/10`
           if (m.reviewHeadline) line += ` — "${m.reviewHeadline}"`
           return line
         })
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
         .slice(0, 10)
         .map((m: { title: string; language?: string; year?: number; rating?: number; reviewHeadline?: string }) => {
           let line = `- "${m.title}" (${m.language}, ${m.year})`
-          if (m.rating) line += ` — rated ${m.rating}/5`
+          if (m.rating != null) line += ` — rated ${m.rating}/10`
           if (m.reviewHeadline) line += ` — "${m.reviewHeadline}"`
           return line
         })
