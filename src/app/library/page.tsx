@@ -36,119 +36,141 @@ function WallPoster({
   return (
     <div
       onMouseEnter={() => { setHovered(true); onHover() }}
-      onMouseLeave={() => { setHovered(false); onLeave() }}
-      onClick={onClick}
       style={{
         position: "relative",
         aspectRatio: "2/3",
-        overflow: "hidden",
+        overflow: "visible",
         cursor: "pointer",
-        transition: "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-        transform: `scale(${scale}) translateX(${parallaxOffset}px)`,
-        zIndex: z,
-        boxShadow: hovered ? "0 12px 36px rgba(10,12,18,0.5)" : "none",
-        filter: filterVal,
       }}
+      onMouseLeave={() => { setHovered(false); onLeave() }}
+      onClick={onClick}
     >
-      <img
-        src={film.poster}
-        alt={film.title}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          display: "block",
-        }}
-      />
-
       <div
         style={{
-          position: "absolute",
+          position: "relative",
           inset: 0,
-          background: hovered
-            ? "linear-gradient(to top, rgba(10,12,18,0.85) 0%, rgba(10,12,18,0.3) 40%, transparent 70%)"
-            : "transparent",
-          transition: "background 0.3s ease",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "flex-end",
-          padding: 14,
+          width: "100%",
+          height: "100%",
+          overflow: "visible",
+          isolation: "isolate",
+          willChange: "transform, box-shadow, filter",
+          transition: "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+          transform: `scale(${scale}) translateX(${parallaxOffset}px)`,
+          zIndex: z,
+          boxShadow: hovered ? "0 12px 36px rgba(10,12,18,0.5)" : "none",
+          filter: filterVal,
         }}
       >
         <div
           style={{
-            fontFamily: "Georgia, serif",
-            fontSize: 14,
-            fontWeight: 400,
-            fontStyle: "italic",
-            color: "rgba(255,255,255,0.9)",
-            opacity: hovered ? 1 : 0,
-            transform: hovered ? "translateY(0)" : "translateY(8px)",
-            transition: "opacity 0.3s ease, transform 0.3s ease",
-            lineHeight: 1.3,
+            position: "relative",
+            width: "100%",
+            height: "100%",
+            overflow: "hidden",
           }}
         >
-          {film.title}
+          <img
+            src={film.poster}
+            alt={film.title}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
         </div>
 
         <div
           style={{
-            fontFamily: "-apple-system, sans-serif",
-            fontSize: 10,
-            color: "rgba(255,255,255,0.4)",
-            opacity: hovered ? 1 : 0,
-            transform: hovered ? "translateY(0)" : "translateY(8px)",
-            transition: "opacity 0.3s ease 0.05s, transform 0.3s ease 0.05s",
-            marginTop: 4,
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            background: hovered
+              ? "linear-gradient(to top, rgba(10,12,18,0.85) 0%, rgba(10,12,18,0.3) 40%, transparent 70%)"
+              : "transparent",
+            transition: "background 0.3s ease",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "flex-end",
+            padding: 14,
           }}
         >
-          {film.language} · {film.year}
-        </div>
-
-        {film.rating != null && (
-          <div
-            style={{
-              opacity: hovered ? 1 : 0,
-              transform: hovered ? "translateY(0)" : "translateY(8px)",
-              transition: "opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s",
-              marginTop: 4,
-            }}
-          >
-            <RatingDisplay rating={film.rating} size="sm" />
-          </div>
-        )}
-
-        {film.reviewHeadline && (
           <div
             style={{
               fontFamily: "Georgia, serif",
-              fontSize: 9,
+              fontSize: 14,
+              fontWeight: 400,
               fontStyle: "italic",
-              color: "rgba(255,255,255,0.3)",
+              color: "rgba(255,255,255,0.9)",
               opacity: hovered ? 1 : 0,
               transform: hovered ? "translateY(0)" : "translateY(8px)",
-              transition: "opacity 0.3s ease 0.15s, transform 0.3s ease 0.15s",
-              marginTop: 6,
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
+              transition: "opacity 0.3s ease, transform 0.3s ease",
+              lineHeight: 1.3,
             }}
           >
-            {film.reviewHeadline}
+            {film.title}
           </div>
-        )}
-      </div>
 
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          border: hovered
-            ? "1px solid rgba(255,255,255,0.15)"
-            : "1px solid transparent",
-          transition: "border-color 0.3s ease",
-          pointerEvents: "none",
-        }}
-      />
+          <div
+            style={{
+              fontFamily: "-apple-system, sans-serif",
+              fontSize: 10,
+              color: "rgba(255,255,255,0.4)",
+              opacity: hovered ? 1 : 0,
+              transform: hovered ? "translateY(0)" : "translateY(8px)",
+              transition: "opacity 0.3s ease 0.05s, transform 0.3s ease 0.05s",
+              marginTop: 4,
+            }}
+          >
+            {film.language} · {film.year}
+          </div>
+
+          {film.rating != null && (
+            <div
+              style={{
+                opacity: hovered ? 1 : 0,
+                transform: hovered ? "translateY(0)" : "translateY(8px)",
+                transition: "opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s",
+                marginTop: 4,
+              }}
+            >
+              <RatingDisplay rating={film.rating} size="sm" />
+            </div>
+          )}
+
+          {film.reviewHeadline && (
+            <div
+              style={{
+                fontFamily: "Georgia, serif",
+                fontSize: 9,
+                fontStyle: "italic",
+                color: "rgba(255,255,255,0.3)",
+                opacity: hovered ? 1 : 0,
+                transform: hovered ? "translateY(0)" : "translateY(8px)",
+                transition: "opacity 0.3s ease 0.15s, transform 0.3s ease 0.15s",
+                marginTop: 6,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}
+            >
+              {film.reviewHeadline}
+            </div>
+          )}
+        </div>
+
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            border: hovered
+              ? "1px solid rgba(255,255,255,0.15)"
+              : "1px solid transparent",
+            transition: "border-color 0.3s ease",
+            pointerEvents: "none",
+          }}
+        />
+      </div>
     </div>
   )
 }
@@ -505,6 +527,7 @@ export default function LibraryPage() {
               gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
               gap: 0,
               width: "100%",
+              transformStyle: "preserve-3d",
             }}
           >
             {watched.map((film, i) => {
