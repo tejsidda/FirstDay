@@ -49,7 +49,7 @@ function PolaroidCard({
           background: hovered
             ? "rgba(255,255,255,0.07)"
             : "rgba(255,255,255,0.04)",
-          padding: "10px 10px 40px 10px",
+          padding: "10px 10px 16px 10px",
           borderRadius: 4,
           boxShadow: hovered
             ? "0 20px 50px rgba(17,17,20,0.7), 0 0 1px rgba(255,255,255,0.08)"
@@ -57,7 +57,14 @@ function PolaroidCard({
           transition: "all 0.4s ease",
         }}
       >
-        <div style={{ aspectRatio: "2/3", overflow: "hidden", borderRadius: 2 }}>
+        <div
+          style={{
+            position: "relative",
+            aspectRatio: "2/3",
+            overflow: "hidden",
+            borderRadius: 2,
+          }}
+        >
           <img
             src={film.poster}
             alt={film.title}
@@ -68,43 +75,56 @@ function PolaroidCard({
               display: "block",
             }}
           />
-        </div>
 
-        <div
-          style={{
-            position: "absolute",
-            bottom: 10,
-            left: 14,
-            right: 14,
-          }}
-        >
+          {/* Bottom gradient to ensure text contrast on any poster */}
           <div
             style={{
-              fontFamily: "Georgia, serif",
-              fontSize: 12,
-              fontStyle: "italic",
-              color: hovered
-                ? "rgba(255,255,255,0.7)"
-                : "rgba(255,255,255,0.3)",
-              transition: "color 0.3s ease",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
+              position: "absolute",
+              inset: 0,
+              background:
+                "linear-gradient(to top, rgba(0,0,0,0.78), rgba(0,0,0,0.45), transparent 55%)",
+              opacity: hovered ? 1 : 0.9,
+              transition: "opacity 0.3s ease",
+              pointerEvents: "none",
+            }}
+          />
+
+          {/* Title + rating over the gradient */}
+          <div
+            style={{
+              position: "absolute",
+              left: 10,
+              right: 10,
+              bottom: 10,
             }}
           >
-            {film.title}
-          </div>
-          {film.rating != null && (
             <div
               style={{
-                marginTop: 2,
-                opacity: hovered ? 1 : 0.5,
-                transition: "opacity 0.3s ease",
+                fontFamily: "Georgia, serif",
+                fontSize: 12,
+                fontStyle: "italic",
+                color: "rgba(255,255,255,0.96)",
+                textShadow:
+                  "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.8)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
               }}
             >
-              <RatingDisplay rating={film.rating} size="sm" />
+              {film.title}
             </div>
-          )}
+            {film.rating != null && (
+              <div
+                style={{
+                  marginTop: 2,
+                  opacity: hovered ? 1 : 0.9,
+                  transition: "opacity 0.3s ease",
+                }}
+              >
+                <RatingDisplay rating={film.rating} size="sm" />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
