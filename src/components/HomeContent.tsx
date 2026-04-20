@@ -9,6 +9,7 @@ import {
   getWatched,
   addToWatchlist,
   markRecommendationShown,
+  getUnshownRecommendations,
 } from "@/lib/db"
 import { supabase } from "@/lib/supabase"
 import { getRecommendations, refreshRecommendations } from "@/lib/recommend"
@@ -135,6 +136,7 @@ function PolaroidCard({
 export default function HomeContent() {
   const [watchlist, setWatchlist] = useState<Movie[]>([])
   const [watched, setWatched] = useState<Movie[]>([])
+  const [heroIndex, setHeroIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const [searchOpen, setSearchOpen] = useState(false)
   const [titleRevealed, setTitleRevealed] = useState(0)
@@ -144,6 +146,7 @@ export default function HomeContent() {
   const [recsLoading, setRecsLoading] = useState(false)
   const router = useRouter()
   const ambientCacheRef = useRef<Record<string, [number, number, number]>>({})
+  const recsHydratedRef = useRef(false)
 
   useEffect(() => {
     const getUser = async () => {
@@ -175,6 +178,26 @@ export default function HomeContent() {
     }
   }
 
+  useEffect(() => {
+    if (loading || watched.length < 3 || recsHydratedRef.current) return
+    recsHydratedRef.current = true
+    let active = true
+    setRecsLoading(true)
+    getUnshownRecommendations(5)
+      .then((recs) => {
+        if (!active) return
+        setRecommendations(recs)
+      })
+      .finally(() => {
+        if (!active) return
+        setRecsLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [loading, watched, watchlist])
+
   const handleRefreshRecommendations = async () => {
     if (watched.length < 3) return
     setRecsLoading(true)
@@ -198,7 +221,18 @@ export default function HomeContent() {
     }
   }
 
-  const heroMovie = watchlist[0] || watched[0] || null
+  const heroMovie =
+    watchlist.length > 0
+      ? watchlist[heroIndex % watchlist.length]
+      : watched[0] || null
+
+  useEffect(() => {
+    if (watchlist.length <= 1) return
+    const interval = setInterval(() => {
+      setHeroIndex((prev) => (prev + 1) % watchlist.length)
+    }, 4500)
+    return () => clearInterval(interval)
+  }, [watchlist.length])
 
   // Typing effect for hero title
   useEffect(() => {

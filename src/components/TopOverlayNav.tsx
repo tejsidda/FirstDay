@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
@@ -41,16 +40,10 @@ export default function TopOverlayNav({
       <div className="flex w-full items-center justify-between px-12 py-4">
         <Link
           href="/home"
-          className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-md bg-white/90"
+          className="text-[13px] font-semibold tracking-[0.1em] text-white/45 transition-colors duration-300 hover:text-white/85"
           aria-label="FDFS Home"
         >
-          <Image
-            src="/images/Black%20Simple%20Personal%20Logo.png"
-            alt="FDFS logo"
-            width={32}
-            height={32}
-            priority
-          />
+          FDFS
         </Link>
         <div className="flex items-center gap-8">
           <button
