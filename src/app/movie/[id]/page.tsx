@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import type { MouseEvent as ReactMouseEvent } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { getMovieCredits, getMovieImages, getPersonFilmography, getMovieKeywords, posterURL } from "@/lib/tmdb"
@@ -36,6 +37,26 @@ function defaultHeadlineForRating(rating?: number | null, isWatchlisted?: boolea
   return "NOT FOR ME"
 }
 
+const useFadeInOnScroll = (offset = 100) => {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const handle = () => {
+      if (!ref.current) return
+      const rect = ref.current.getBoundingClientRect()
+      if (rect.top < window.innerHeight - offset) {
+        setVisible(true)
+      }
+    }
+    window.addEventListener("scroll", handle, { passive: true })
+    handle()
+    return () => window.removeEventListener("scroll", handle)
+  }, [offset])
+
+  return { ref, visible }
+}
+
 export default function MovieDetailPage() {
   const params = useParams()
   const tmdbParam = params.id as string | string[] | undefined
@@ -68,6 +89,10 @@ export default function MovieDetailPage() {
   const [heroMotion, setHeroMotion] = useState({ x: 0, y: 0, active: false })
   const motionRafRef = useRef<number | null>(null)
   const latestMotionRef = useRef({ x: 0, y: 0, active: false })
+  const [smoothScroll, setSmoothScroll] = useState(0)
+  const scrollRef = useRef(0)
+  const smoothRafRef = useRef<number | null>(null)
+  const lastSmoothEmitRef = useRef(0)
 
   useEffect(() => {
     if (!tmdbId) return
@@ -133,21 +158,37 @@ export default function MovieDetailPage() {
   }, [tmdbId])
 
   useEffect(() => {
-    const handleScroll = () => {
-      const scrollY = window.scrollY
-      const fadeStart = 0
-      const fadeEnd = window.innerHeight * 0.7
-      const progress = Math.min(Math.max((scrollY - fadeStart) / (fadeEnd - fadeStart), 0), 1)
-      setHeroOpacity(1 - progress)
-      setHeroScale(1 - progress * 0.05)
-    }
-
-    handleScroll()
-    window.addEventListener("scroll", handleScroll, { passive: true })
     return () => {
-      window.removeEventListener("scroll", handleScroll)
+      if (smoothRafRef.current != null) cancelAnimationFrame(smoothRafRef.current)
     }
   }, [])
+
+  // Smoothed scroll driver (single rAF loop)
+  useEffect(() => {
+    const update = () => {
+      scrollRef.current += (window.scrollY - scrollRef.current) * 0.08
+      const next = scrollRef.current
+      if (Math.abs(next - lastSmoothEmitRef.current) > 0.25) {
+        lastSmoothEmitRef.current = next
+        setSmoothScroll(next)
+      }
+      smoothRafRef.current = requestAnimationFrame(update)
+    }
+    update()
+    return () => {
+      if (smoothRafRef.current != null) cancelAnimationFrame(smoothRafRef.current)
+    }
+  }, [])
+
+  // Scroll-driven hero dissolve (uses smoothed scroll)
+  useEffect(() => {
+    const vh = window.innerHeight
+    const progress = Math.min(smoothScroll / (vh * 0.9), 1)
+    const nextOpacity = 1 - progress * 1.05
+    const nextScale = 1 - progress * 0.08
+    setHeroOpacity(Math.max(0, nextOpacity))
+    setHeroScale(Math.max(0.9, nextScale))
+  }, [smoothScroll])
 
   useEffect(() => {
     return () => {
@@ -196,6 +237,39 @@ export default function MovieDetailPage() {
   const g1 = images.backdrops[1] || posterSrc
   const g2 = images.backdrops[2] || posterSrc
 
+  const depth = 1 - heroOpacity
+  const contentLift = Math.min(smoothScroll / 500, 1)
+  const posterBaseTransform = `
+    perspective(800px)
+    rotateY(${heroMotion.x * 6}deg)
+    rotateX(${heroMotion.y * -6}deg)
+    translateY(${(1 - heroOpacity) * 10}px)
+  `
+
+  const handleImgError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    e.currentTarget.style.opacity = "0.3"
+  }
+
+  const buttonMicro = {
+    onMouseDown: (e: ReactMouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.style.transform = "scale(0.96)"
+    },
+    onMouseUp: (e: ReactMouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.style.transform = "scale(1)"
+    },
+    onMouseEnter: (e: ReactMouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.style.transform = "scale(1.04)"
+    },
+    onMouseLeave: (e: ReactMouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.style.transform = "scale(1)"
+    },
+  }
+
+  const metaFade = useFadeInOnScroll(120)
+  const reviewFade = useFadeInOnScroll(140)
+  const keywordsFade = useFadeInOnScroll(160)
+  const castFade = useFadeInOnScroll(160)
+
   const queueHeroMotion = (x: number, y: number, active: boolean) => {
     latestMotionRef.current = { x, y, active }
     if (motionRafRef.current != null) return
@@ -205,7 +279,7 @@ export default function MovieDetailPage() {
     })
   }
 
-  const handleHeroMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleHeroMouseMove = (e: ReactMouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
     const nx = (e.clientX - (rect.left + rect.width / 2)) / (rect.width / 2)
     const ny = (e.clientY - (rect.top + rect.height / 2)) / (rect.height / 2)
@@ -238,11 +312,24 @@ export default function MovieDetailPage() {
     >
       <style>{`
         .person-btn:hover { color: rgba(255,255,255,0.65) !important; }
+        @keyframes fadeUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0px);
+          }
+        }
+        .no-jank { transform: translateZ(0); }
       `}</style>
       <div style={{ position: "relative" }}>
       {/* Hero — final structured backdrop grid */}
       <section
         className="relative w-full overflow-hidden"
+        onMouseMove={handleHeroMouseMove}
+        onMouseLeave={handleHeroMouseLeave}
         style={{
           position: "sticky",
           top: 0,
@@ -251,7 +338,6 @@ export default function MovieDetailPage() {
           marginBottom: 0,
           background: "#0C0C10",
           opacity: heroOpacity,
-          transform: `scale(${heroScale})`,
           transition: "none",
         }}
       >
@@ -261,6 +347,12 @@ export default function MovieDetailPage() {
             inset: 0,
             transformOrigin: "center top",
             willChange: "opacity, transform",
+            transform: `
+              scale(${heroScale + 0.03 * depth})
+              translate3d(${heroMotion.x * 25 * (1 + depth)}px, ${heroMotion.y * 15 * (1 + depth)}px, 0)
+            `,
+            transition: "transform 600ms cubic-bezier(0.22, 1, 0.36, 1)",
+            filter: `blur(${(1 - heroOpacity) * 8}px) brightness(${1 - (1 - heroOpacity) * 0.2})`,
           }}
         >
           {images.backdrops.length >= 4 ? (
@@ -277,7 +369,12 @@ export default function MovieDetailPage() {
             >
               {images.backdrops.slice(0, 4).map((src, i) => (
                 <div key={i} style={{ overflow: "hidden" }}>
-                  <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <img
+                    src={src}
+                    alt=""
+                    onError={handleImgError}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
                 </div>
               ))}
             </div>
@@ -295,13 +392,28 @@ export default function MovieDetailPage() {
               }}
             >
               <div style={{ gridColumn: "1", gridRow: "1 / 3", overflow: "hidden" }}>
-                <img src={images.backdrops[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img
+                  src={images.backdrops[0]}
+                  alt=""
+                  onError={handleImgError}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
               </div>
               <div style={{ gridColumn: "2", gridRow: "1", overflow: "hidden" }}>
-                <img src={images.backdrops[1]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img
+                  src={images.backdrops[1]}
+                  alt=""
+                  onError={handleImgError}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
               </div>
               <div style={{ gridColumn: "2", gridRow: "2", overflow: "hidden" }}>
-                <img src={images.backdrops[2]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img
+                  src={images.backdrops[2]}
+                  alt=""
+                  onError={handleImgError}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
               </div>
             </div>
           ) : images.backdrops.length === 2 ? (
@@ -318,7 +430,12 @@ export default function MovieDetailPage() {
             >
               {images.backdrops.slice(0, 2).map((src, i) => (
                 <div key={i} style={{ overflow: "hidden" }}>
-                  <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <img
+                    src={src}
+                    alt=""
+                    onError={handleImgError}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
                 </div>
               ))}
             </div>
@@ -341,9 +458,17 @@ export default function MovieDetailPage() {
             style={{
               position: "absolute",
               inset: 0,
-              background: "rgba(12,12,16,0.2)",
+              background: "linear-gradient(to bottom, rgba(12,12,16,0.2), rgba(12,12,16,0.85))",
               zIndex: 2,
-              pointerEvents: "none",
+            }}
+          />
+
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "radial-gradient(circle at center, transparent 40%, rgba(12,12,16,0.6))",
+              zIndex: 3,
             }}
           />
 
@@ -370,7 +495,13 @@ export default function MovieDetailPage() {
                 lineHeight: 0.9,
                 textAlign: "center",
                 textTransform: "uppercase",
-                mixBlendMode: "difference",
+                mixBlendMode: "overlay",
+                opacity: heroOpacity,
+                transform: `
+                  translateY(${(1 - heroOpacity) * -40}px)
+                  scale(${1 + (1 - heroOpacity) * 0.05})
+                `,
+                transition: "transform 600ms cubic-bezier(0.22, 1, 0.36, 1), opacity 600ms cubic-bezier(0.22, 1, 0.36, 1)",
                 textShadow: "0 0 80px rgba(12,12,16,0.5), 0 0 40px rgba(12,12,16,0.3)",
                 WebkitTextStroke: "1px rgba(255,255,255,0.15)",
               }}
@@ -391,6 +522,7 @@ export default function MovieDetailPage() {
             flexDirection: "column",
             alignItems: "center",
             gap: 6,
+            opacity: heroOpacity,
           }}
         >
           <div
@@ -417,6 +549,7 @@ export default function MovieDetailPage() {
           type="button"
           onClick={() => router.back()}
           aria-label="Go back"
+          {...buttonMicro}
           style={{
             position: "absolute",
             top: 24,
@@ -448,11 +581,22 @@ export default function MovieDetailPage() {
           boxShadow: "0 -20px 60px rgba(12,12,16,0.9)",
           paddingTop: 80,
           borderRadius: "24px 24px 0 0",
+          transform: `translateY(${(1 - contentLift) * 40}px)`,
+          opacity: contentLift,
+          transition: "transform 700ms cubic-bezier(0.22,1,0.36,1), opacity 700ms cubic-bezier(0.22,1,0.36,1)",
         }}
       >
 
       {/* Section 2: Title + Metadata + Genres */}
-      <div style={{ maxWidth: 900, marginTop: 0, marginBottom: 0, marginLeft: "auto", marginRight: "auto", padding: "0 48px" }}>
+      <div
+        ref={metaFade.ref}
+        style={{
+          opacity: metaFade.visible ? 1 : 0,
+          transform: metaFade.visible ? "translateY(0px)" : "translateY(20px)",
+          transition: "all 600ms cubic-bezier(0.22,1,0.36,1)",
+        }}
+      >
+        <div style={{ maxWidth: 900, marginTop: 0, marginBottom: 0, marginLeft: "auto", marginRight: "auto", padding: "0 48px" }}>
         <h1
           style={{
             fontFamily: 'Georgia, "Times New Roman", serif',
@@ -473,6 +617,20 @@ export default function MovieDetailPage() {
           {movie?.title || "Untitled"}
         </h1>
 
+        {movie?.tagline && (
+          <p
+            style={{
+              fontSize: 13,
+              color: "rgba(255,255,255,0.4)",
+              fontStyle: "italic",
+              marginTop: 12,
+              textAlign: "center",
+            }}
+          >
+            {movie.tagline}
+          </p>
+        )}
+
         <div className="flex flex-wrap" style={{ gap: 0, marginTop: 28 }}>
           <div className="min-w-[140px] flex-1">
             <div style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', fontSize: 9, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(255,255,255,0.25)" }}>
@@ -481,6 +639,7 @@ export default function MovieDetailPage() {
             <button
               className="person-btn"
               onClick={() => handlePersonClick(credits.director)}
+              {...buttonMicro}
               style={{
                 fontFamily: 'Georgia, "Times New Roman", serif',
                 fontSize: 14,
@@ -559,9 +718,26 @@ export default function MovieDetailPage() {
           ))}
         </div>
       </div>
+      </div>
 
       {/* Section 3: Review section */}
-      <div style={{ maxWidth: 900, marginLeft: "auto", marginRight: "auto", padding: "0 48px", marginTop: 48 }}>
+      <div
+        ref={reviewFade.ref}
+        style={{
+          opacity: reviewFade.visible ? 1 : 0,
+          transform: reviewFade.visible ? "translateY(0px)" : "translateY(20px)",
+          transition: "all 600ms cubic-bezier(0.22,1,0.36,1)",
+        }}
+      >
+        <div
+          style={{
+            width: 40,
+            height: 1,
+            background: "rgba(255,255,255,0.08)",
+            margin: "40px auto 24px",
+          }}
+        />
+        <div style={{ maxWidth: 900, marginLeft: "auto", marginRight: "auto", padding: "0 48px", marginTop: 48 }}>
         {!editingReview ? (
           <>
             {displayHeadline && (
@@ -601,6 +777,7 @@ export default function MovieDetailPage() {
               <button
                 type="button"
                 onClick={() => setEditingReview(true)}
+                {...buttonMicro}
                 style={{
                   fontFamily: 'Georgia, "Times New Roman", serif',
                   fontSize: 13,
@@ -676,6 +853,7 @@ export default function MovieDetailPage() {
                 type="button"
                 onClick={handleSaveReview}
                 disabled={saving}
+                {...buttonMicro}
                 style={{
                   fontFamily: "-apple-system, sans-serif",
                   fontSize: 12,
@@ -696,6 +874,7 @@ export default function MovieDetailPage() {
                   setHeadline(dbRecord?.review_headline || "")
                   setBody(dbRecord?.review_body || "")
                 }}
+                {...buttonMicro}
                 style={{
                   fontFamily: "-apple-system, sans-serif",
                   fontSize: 12,
@@ -712,52 +891,92 @@ export default function MovieDetailPage() {
           </div>
         )}
       </div>
+      </div>
 
       {/* Keywords */}
       {keywords.length > 0 && (
-        <div style={{
-          maxWidth: 900,
-          marginLeft: 'auto',
-          marginRight: 'auto',
-          paddingLeft: 48,
-          paddingRight: 48,
-          marginTop: 40,
-        }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 10px' }}>
-            {keywords.slice(0, 12).map((keyword, i) => (
-              <span key={i} style={{
-                fontFamily: 'Georgia, serif',
-                fontSize: 11,
-                fontStyle: 'italic',
-                color: `rgba(255,255,255,${0.15 + (i % 3) * 0.05})`,
-                letterSpacing: '0.02em',
-              }}>
-                {keyword}{i < Math.min(keywords.length, 12) - 1 ? ' ·' : ''}
-              </span>
-            ))}
+        <div
+          ref={keywordsFade.ref}
+          style={{
+            opacity: keywordsFade.visible ? 1 : 0,
+            transform: keywordsFade.visible ? "translateY(0px)" : "translateY(20px)",
+            transition: "all 600ms cubic-bezier(0.22,1,0.36,1)",
+          }}
+        >
+          <div style={{
+            maxWidth: 900,
+            marginLeft: 'auto',
+            marginRight: 'auto',
+            paddingLeft: 48,
+            paddingRight: 48,
+            marginTop: 40,
+          }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 10px' }}>
+              {keywords.slice(0, 12).map((keyword, i) => (
+                <span key={i} style={{
+                  fontFamily: 'Georgia, serif',
+                  fontSize: 11,
+                  fontStyle: 'italic',
+                  color: `rgba(255,255,255,${0.15 + (i % 3) * 0.05})`,
+                  letterSpacing: '0.02em',
+                }}>
+                  {keyword}{i < Math.min(keywords.length, 12) - 1 ? ' ·' : ''}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       {/* Section 4: Poster + Cast + Filmography */}
-      <div style={{
-        maxWidth: 1100,
-        marginLeft: 'auto',
-        marginRight: 'auto',
-        paddingLeft: 48,
-        paddingRight: 48,
-        marginTop: 48,
-        display: 'flex',
-        gap: 40,
-        alignItems: 'flex-start',
-      }}>
+      <div
+        ref={castFade.ref}
+        style={{
+          opacity: castFade.visible ? 1 : 0,
+          transform: castFade.visible ? "translateY(0px)" : "translateY(20px)",
+          transition: "all 600ms cubic-bezier(0.22,1,0.36,1)",
+        }}
+      >
+        <div style={{
+          maxWidth: 1100,
+          marginLeft: 'auto',
+          marginRight: 'auto',
+          paddingLeft: 48,
+          paddingRight: 48,
+          marginTop: 48,
+          display: 'flex',
+          gap: 40,
+          alignItems: 'flex-start',
+        }}>
         {/* Poster */}
         <div style={{ flexShrink: 0 }}>
           {posterSrc ? (
             <img
               src={posterSrc}
               alt={movie?.title || "Poster"}
-              style={{ width: 220, borderRadius: 6, boxShadow: '0 8px 32px rgba(12,12,16,0.5)' }}
+              onError={handleImgError}
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect()
+                const x = (e.clientX - rect.left) / rect.width - 0.5
+                const y = (e.clientY - rect.top) / rect.height - 0.5
+
+                e.currentTarget.style.transform = `
+                  perspective(800px)
+                  rotateY(${x * 6}deg)
+                  rotateX(${y * -6}deg)
+                  scale(1.02)
+                `
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = posterBaseTransform
+              }}
+              style={{
+                width: 220,
+                borderRadius: 6,
+                boxShadow: '0 8px 32px rgba(12,12,16,0.5)',
+                transition: "transform 200ms ease",
+                transform: posterBaseTransform,
+              }}
             />
           ) : null}
         </div>
@@ -781,6 +1000,7 @@ export default function MovieDetailPage() {
               key={i}
               className="person-btn"
               onClick={() => handlePersonClick(name)}
+              {...buttonMicro}
               style={{
                 fontFamily: 'Georgia, serif',
                 fontSize: 14,
@@ -807,8 +1027,9 @@ export default function MovieDetailPage() {
             paddingLeft: 32,
             borderLeft: '1px solid rgba(255,255,255,0.05)',
             minHeight: 200,
-            opacity: 1,
-            transition: 'opacity 0.3s ease',
+            transform: selectedPerson ? "translateY(0px)" : "translateY(10px)",
+            opacity: selectedPerson ? 1 : 0,
+            transition: "all 0.4s cubic-bezier(0.22,1,0.36,1)",
           }}>
             <div style={{
               fontFamily: '-apple-system, sans-serif',
@@ -863,6 +1084,7 @@ export default function MovieDetailPage() {
             )}
           </div>
         )}
+        </div>
       </div>
 
       {/* Section 5: TMDB Description */}

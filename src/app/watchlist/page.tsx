@@ -23,19 +23,43 @@ function extractAmbientRgb(imageUrl: string): Promise<[number, number, number]> 
       canvas.width = 24
       canvas.height = 24
       const ctx = canvas.getContext("2d")
-      if (!ctx) { resolve(DEFAULT_AMBIENT); return }
+      if (!ctx) {
+        img.onload = null
+        img.onerror = null
+        resolve(DEFAULT_AMBIENT)
+        return
+      }
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+      let pixels: Uint8ClampedArray
+      try {
+        pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+      } catch {
+        img.onload = null
+        img.onerror = null
+        resolve(DEFAULT_AMBIENT)
+        return
+      }
       let r = 0, g = 0, b = 0, count = 0
       for (let i = 0; i < pixels.length; i += 4) {
         if (pixels[i + 3] < 16) continue
         r += pixels[i]; g += pixels[i + 1]; b += pixels[i + 2]; count++
       }
-      if (count === 0) { resolve(DEFAULT_AMBIENT); return }
+      if (count === 0) {
+        img.onload = null
+        img.onerror = null
+        resolve(DEFAULT_AMBIENT)
+        return
+      }
       const soften = (v: number) => Math.max(20, Math.min(190, Math.round(v * 0.82 + 14)))
+      img.onload = null
+      img.onerror = null
       resolve([soften(r / count), soften(g / count), soften(b / count)])
     }
-    img.onerror = () => resolve(DEFAULT_AMBIENT)
+    img.onerror = () => {
+      img.onload = null
+      img.onerror = null
+      resolve(DEFAULT_AMBIENT)
+    }
     img.src = imageUrl
   })
 }
@@ -67,7 +91,7 @@ function FilmFrame({
         style={{
           background: "#151413",
           borderRadius: 4,
-          padding: "12px 8px",
+          padding: "12px 8px 14px 8px",
           boxShadow: isCentered
             ? "0 20px 60px rgba(19,18,17,0.8), 0 0 30px rgba(255,255,255,0.03)"
             : "0 4px 16px rgba(19,18,17,0.4)",
@@ -78,6 +102,9 @@ function FilmFrame({
           <img
             src={film.poster}
             alt={film.title}
+            onError={(e) => {
+              e.currentTarget.src = "/fallback-poster.jpg"
+            }}
             style={{
               width: "100%",
               height: "100%",
@@ -87,7 +114,14 @@ function FilmFrame({
           />
         </div>
 
-        <div style={{ marginTop: 10, textAlign: "center" }}>
+        <div
+          style={{
+            marginTop: 10,
+            textAlign: "center",
+            flexShrink: 0,
+            minHeight: isCentered ? 48 : 36,
+          }}
+        >
           <div
             style={{
               fontFamily: "Georgia, serif",
@@ -107,13 +141,15 @@ function FilmFrame({
             <div
               style={{
                 fontFamily: "-apple-system, sans-serif",
-                fontSize: 10,
-                color: "rgba(255,255,255,0.35)",
-                marginTop: 4,
+                fontSize: 11,
+                color: "rgba(255,255,255,0.45)",
+                marginTop: 6,
+                letterSpacing: "0.04em",
                 transition: "opacity 0.3s ease",
               }}
             >
-              {film.language} · {film.year}
+              {film.language}
+              {film.year != null ? ` · ${film.year}` : ""}
             </div>
           )}
         </div>
@@ -164,6 +200,7 @@ export default function WatchlistPage() {
   const router = useRouter()
   const stripRef = useRef<HTMLDivElement>(null)
   const ambientCacheRef = useRef<Record<string, [number, number, number]>>({})
+  const scrollTickingRef = useRef(false)
 
   useEffect(() => {
     let active = true
@@ -203,21 +240,26 @@ export default function WatchlistPage() {
     setShowRating(false)
   }, [centeredIndex])
 
-  const syncStripToIndex = useCallback((index: number, length: number) => {
+  const syncStripToIndex = useCallback(
+    (index: number, length: number, options?: { setState?: boolean }) => {
     if (!stripRef.current || length <= 0) return
     const idx = Math.max(0, Math.min(index, length - 1))
     stripRef.current.scrollTo({ left: idx * CARD_TOTAL, behavior: "smooth" })
-    setCenteredIndex(idx)
-  }, [])
+    if (options?.setState !== false) setCenteredIndex(idx)
+  }, []
+  )
 
   const scrollStrip = useCallback(
     (direction: -1 | 1) => {
       if (watchlist.length <= 1) return
-      const next = centeredIndex + direction
-      if (next < 0 || next >= watchlist.length) return
-      syncStripToIndex(next, watchlist.length)
+      setCenteredIndex((prev) => {
+        const next = prev + direction
+        if (next < 0 || next >= watchlist.length) return prev
+        syncStripToIndex(next, watchlist.length, { setState: false })
+        return next
+      })
     },
-    [centeredIndex, watchlist.length, syncStripToIndex]
+    [watchlist.length, syncStripToIndex]
   )
 
   // Keyboard: Left/Right arrows move the strip one film at a time
@@ -242,48 +284,75 @@ export default function WatchlistPage() {
   }, [watchlist.length, scrollStrip])
 
   const handleMarkWatched = async (film: Movie, rating: number) => {
+    if (actionLoading) return
     setActionLoading(true)
-    let success = await markAsWatched(film, rating)
-    if (!success) {
-      success = await updateWatchedRating(film.id, rating)
+    try {
+      let success = await markAsWatched(film, rating)
+      if (!success) {
+        success = await updateWatchedRating(film.id, rating)
+      }
+      if (success) {
+        const updated = watchlist.filter((m) => m.id !== film.id)
+        if (updated.length === 0) {
+          setWatchlist([])
+          setCenteredIndex(0)
+          setShowRating(false)
+          return
+        }
+        setWatchlist(updated)
+        const nextIndex =
+          centeredIndex >= updated.length && updated.length > 0
+            ? updated.length - 1
+            : Math.min(centeredIndex, Math.max(0, updated.length - 1))
+        syncStripToIndex(nextIndex, updated.length)
+        setShowRating(false)
+      }
+    } finally {
+      setActionLoading(false)
     }
-    if (success) {
-      const updated = watchlist.filter((m) => m.id !== film.id)
-      setWatchlist(updated)
-      const nextIndex =
-        centeredIndex >= updated.length && updated.length > 0
-          ? updated.length - 1
-          : Math.min(centeredIndex, Math.max(0, updated.length - 1))
-      syncStripToIndex(nextIndex, updated.length)
-      setShowRating(false)
-    }
-    setActionLoading(false)
   }
 
   const handleRemove = async (film: Movie) => {
+    if (actionLoading) return
     setActionLoading(true)
-    const success = await removeFromWatchlist(film.id)
-    if (success) {
-      const updated = watchlist.filter((m) => m.id !== film.id)
-      setWatchlist(updated)
-      const nextIndex =
-        centeredIndex >= updated.length && updated.length > 0
-          ? updated.length - 1
-          : Math.min(centeredIndex, Math.max(0, updated.length - 1))
-      syncStripToIndex(nextIndex, updated.length)
+    try {
+      const success = await removeFromWatchlist(film.id)
+      if (success) {
+        const updated = watchlist.filter((m) => m.id !== film.id)
+        if (updated.length === 0) {
+          setWatchlist([])
+          setCenteredIndex(0)
+          return
+        }
+        setWatchlist(updated)
+        const nextIndex =
+          centeredIndex >= updated.length && updated.length > 0
+            ? updated.length - 1
+            : Math.min(centeredIndex, Math.max(0, updated.length - 1))
+        syncStripToIndex(nextIndex, updated.length)
+      }
+    } finally {
+      setActionLoading(false)
     }
-    setActionLoading(false)
   }
 
   const handleStripScroll = useCallback(() => {
-    if (!stripRef.current) return
-    const scrollLeft = stripRef.current.scrollLeft
-    const index = Math.round(scrollLeft / CARD_TOTAL)
-    const clamped = Math.max(0, Math.min(index, watchlist.length - 1))
-    if (clamped !== centeredIndex) {
-      setCenteredIndex(clamped)
-    }
-  }, [watchlist.length, centeredIndex])
+    if (isSpinning || !stripRef.current) return
+    if (scrollTickingRef.current) return
+    scrollTickingRef.current = true
+    requestAnimationFrame(() => {
+      const el = stripRef.current
+      if (!el) {
+        scrollTickingRef.current = false
+        return
+      }
+      const scrollLeft = el.scrollLeft
+      const index = Math.floor((scrollLeft + CARD_TOTAL / 2) / CARD_TOTAL)
+      const clamped = Math.max(0, Math.min(index, watchlist.length - 1))
+      setCenteredIndex((prev) => (prev === clamped ? prev : clamped))
+      scrollTickingRef.current = false
+    })
+  }, [isSpinning, watchlist.length])
 
   const handleSpin = useCallback(() => {
     if (isSpinning || watchlist.length === 0 || !stripRef.current) return
@@ -296,7 +365,6 @@ export default function WatchlistPage() {
     const duration = 3000
     const startTime = Date.now()
     const strip = stripRef.current
-    const maxScroll = (watchlist.length - 1) * CARD_TOTAL
 
     const animate = () => {
       const elapsed = Date.now() - startTime
@@ -305,7 +373,7 @@ export default function WatchlistPage() {
 
       if (strip) {
         const raw = startScroll + eased * totalDistance
-        const wrapped = maxScroll > 0 ? raw % maxScroll : 0
+        const wrapped = raw % (watchlist.length * CARD_TOTAL)
         strip.scrollLeft = wrapped
       }
 
@@ -364,6 +432,7 @@ export default function WatchlistPage() {
     >
       <style>{`
         .film-strip::-webkit-scrollbar { display: none; }
+        .no-snap { scroll-snap-type: none !important; }
       `}</style>
 
       {/* Ambient background */}
@@ -492,7 +561,7 @@ export default function WatchlistPage() {
 
             <div
               ref={stripRef}
-              className="film-strip"
+              className={`film-strip ${isSpinning ? "no-snap" : ""}`}
               onScroll={handleStripScroll}
               style={{
                 display: "flex",
@@ -502,8 +571,8 @@ export default function WatchlistPage() {
                 overflowY: "hidden",
                 paddingLeft: `calc(50vw - ${CARD_WIDTH / 2}px)`,
                 paddingRight: `calc(50vw - ${CARD_WIDTH / 2}px)`,
-                paddingTop: 8,
-                paddingBottom: 8,
+                paddingTop: 64,
+                paddingBottom: 100,
                 scrollBehavior: isSpinning ? "auto" : "smooth",
                 scrollSnapType: isSpinning ? "none" : "x mandatory",
                 scrollbarWidth: "none",
@@ -690,6 +759,22 @@ export default function WatchlistPage() {
               >
                 {centeredIndex + 1} of {watchlist.length}
               </div>
+              {!showRating && watchlist[centeredIndex] && (
+                <div
+                  style={{
+                    fontFamily: "-apple-system, sans-serif",
+                    fontSize: 11,
+                    color: "rgba(255,255,255,0.38)",
+                    letterSpacing: "0.06em",
+                    marginTop: 4,
+                  }}
+                >
+                  {watchlist[centeredIndex].language}
+                  {watchlist[centeredIndex].year != null
+                    ? ` · ${watchlist[centeredIndex].year}`
+                    : ""}
+                </div>
+              )}
 
               {!showRating && !actionLoading && (
                 <div
@@ -795,42 +880,89 @@ export default function WatchlistPage() {
               )}
 
               {showRating && !actionLoading && (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
-                    <StandingOvationInput
-                      value={null}
-                      onChange={(r) => {
-                        handleMarkWatched(watchlist[centeredIndex], r)
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowRating(false)
-                    }}
+                <>
+                  <div
+                    role="presentation"
+                    aria-hidden
+                    onClick={() => setShowRating(false)}
                     style={{
-                      fontFamily: "Georgia, serif",
-                      fontSize: 11,
-                      fontStyle: "italic",
-                      color: "rgba(255,255,255,0.2)",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      marginTop: 4,
+                      position: "fixed",
+                      inset: 0,
+                      zIndex: 34,
+                      background: "rgba(8,8,10,0.72)",
+                      backdropFilter: "blur(6px)",
+                      WebkitBackdropFilter: "blur(6px)",
+                    }}
+                  />
+                  <div
+                    role="dialog"
+                    aria-label="Rate this film"
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      position: "fixed",
+                      left: "50%",
+                      bottom: "max(100px, calc(24px + env(safe-area-inset-bottom, 0px)))",
+                      transform: "translateX(-50%)",
+                      zIndex: 36,
+                      width: "min(440px, calc(100vw - 32px))",
+                      padding: "22px 24px 20px",
+                      borderRadius: 14,
+                      background: "rgba(24,24,26,0.96)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      boxShadow: "0 16px 48px rgba(0,0,0,0.55)",
                     }}
                   >
-                    cancel
-                  </button>
-                </div>
+                    <div
+                      style={{
+                        fontFamily: "Georgia, serif",
+                        fontSize: 13,
+                        fontStyle: "italic",
+                        color: "rgba(255,255,255,0.75)",
+                        textAlign: "center",
+                        marginBottom: 14,
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      {watchlist[centeredIndex]?.title}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 14,
+                      }}
+                    >
+                      <div style={{ width: "100%", maxWidth: 400 }}>
+                        <StandingOvationInput
+                          value={null}
+                          onChange={(r) => {
+                            handleMarkWatched(watchlist[centeredIndex], r)
+                          }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowRating(false)
+                        }}
+                        style={{
+                          fontFamily: "Georgia, serif",
+                          fontSize: 11,
+                          fontStyle: "italic",
+                          color: "rgba(255,255,255,0.35)",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: "4px 8px",
+                        }}
+                      >
+                        cancel
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
 
               {actionLoading && (

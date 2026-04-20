@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 // ─── Phase flow: "intro" → (tap) → "login" → (valid sign in) → "success" → redirect to /home
 type Phase = "intro" | "login" | "success";
@@ -146,11 +147,23 @@ export default function LandingPage() {
   // Sign in: validates email/password; on success shows Casablanca quote then redirects.
   // Change "/home" to another path if you want to send users elsewhere after login.
   // Change 2500 to keep success screen visible longer/shorter before redirect; 1000 is delay before "Redirecting..." text.
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
     if (!email.trim() || !password.trim()) {
+      setShowToast(true);
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = window.setTimeout(() => setShowToast(false), 2500);
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password: password.trim(),
+    });
+    if (error) {
+      console.error("Sign in error:", error.message);
       setShowToast(true);
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
       toastTimerRef.current = window.setTimeout(() => setShowToast(false), 2500);
@@ -380,7 +393,15 @@ export default function LandingPage() {
                           <button
                             type="button"
                             className="flex-1 rounded-[8px] border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] px-4 py-[11px] text-[12px] text-[rgba(255,255,255,0.4)] transition-all duration-300 ease-out hover:bg-[rgba(255,255,255,0.06)]"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await supabase.auth.signInWithOAuth({
+                                provider: "google",
+                                options: {
+                                  redirectTo: `${window.location.origin}/auth/callback`,
+                                },
+                              });
+                            }}
                           >
                             Google
                           </button>

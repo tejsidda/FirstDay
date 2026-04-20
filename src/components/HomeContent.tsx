@@ -10,6 +10,7 @@ import {
   addToWatchlist,
   markRecommendationShown,
 } from "@/lib/db"
+import { supabase } from "@/lib/supabase"
 import { getRecommendations, refreshRecommendations } from "@/lib/recommend"
 import { Movie, type Recommendation } from "@/lib/types"
 import RatingDisplay from "@/components/RatingDisplay"
@@ -143,6 +144,14 @@ export default function HomeContent() {
   const [recsLoading, setRecsLoading] = useState(false)
   const router = useRouter()
   const ambientCacheRef = useRef<Record<string, [number, number, number]>>({})
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data } = await supabase.auth.getUser()
+      console.log("USER ID:", data.user?.id)
+    }
+    getUser()
+  }, [])
 
   useEffect(() => {
     async function loadData() {
@@ -299,8 +308,8 @@ export default function HomeContent() {
               backgroundImage: `url(${heroMovie.poster})`,
               backgroundSize: "cover",
               backgroundPosition: "center",
-              filter: "blur(50px) saturate(1.5) brightness(0.35)",
-              transform: "scale(1.5)",
+              filter: "blur(18px) saturate(1.15) brightness(0.55)",
+              transform: "scale(1.08)",
               animation: "fadeIn 2s ease-out forwards",
               opacity: 0,
             }}
