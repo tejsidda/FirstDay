@@ -179,7 +179,7 @@ export default function HomeContent() {
   }
 
   useEffect(() => {
-    if (loading || watched.length < 3 || recsHydratedRef.current) return
+    if (loading || recsHydratedRef.current) return
     recsHydratedRef.current = true
     let active = true
     setRecsLoading(true)
@@ -196,7 +196,7 @@ export default function HomeContent() {
     return () => {
       active = false
     }
-  }, [loading, watched, watchlist])
+  }, [loading])
 
   const handleRefreshRecommendations = async () => {
     if (watched.length < 3) return
@@ -543,7 +543,7 @@ export default function HomeContent() {
       )}
 
       {/* Recommendations — Supabase-backed batch; 5 slots, dismiss/add marks shown */}
-      {watched.length >= 3 && (
+      {(
         <section
           style={{
             padding: "80px 48px",
