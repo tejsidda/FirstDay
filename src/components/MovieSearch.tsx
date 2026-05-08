@@ -8,15 +8,17 @@ export default function MovieSearch({
   onAdd,
   onClose,
 }: {
-  onAdd: (movie: Movie) => void
+  onAdd: (movie: Movie) => Promise<{ ok: boolean; message?: string }>
   onClose: () => void
 }) {
   const [query, setQuery] = useState("")
   const [year, setYear] = useState("")
   const [results, setResults] = useState<Movie[]>([])
   const [loading, setLoading] = useState(false)
+  const [addMessage, setAddMessage] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const queryReady = query.trim().length >= 2
 
   // Auto-focus the input when the component opens
   useEffect(() => {
@@ -25,10 +27,7 @@ export default function MovieSearch({
 
   // Debounced search — waits 400ms after you stop typing
   useEffect(() => {
-    if (query.trim().length < 2) {
-      setResults([])
-      return
-    }
+    if (!queryReady) return
 
     if (timerRef.current) clearTimeout(timerRef.current)
 
@@ -46,7 +45,7 @@ export default function MovieSearch({
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [query, year])
+  }, [query, year, queryReady])
 
   // Close on escape
   useEffect(() => {
@@ -98,7 +97,7 @@ export default function MovieSearch({
         </div>
 
         {/* Results */}
-        {(results.length > 0 || loading) && (
+        {(queryReady && (results.length > 0 || loading)) && (
           <div className="mt-2 max-h-[60vh] overflow-y-auto rounded-xl border" style={{ background: '#141418', borderColor: 'rgba(255,255,255,0.06)' }}>
             {loading && results.length === 0 && (
               <div className="px-5 py-8 text-center text-white/30 text-sm">
@@ -109,9 +108,14 @@ export default function MovieSearch({
             {results.map((movie) => (
               <button
                 key={movie.id}
-                onClick={() => {
-                  onAdd(movie)
-                  onClose()
+                onClick={async () => {
+                  const result = await onAdd(movie)
+                  if (result.ok) {
+                    setAddMessage("")
+                    onClose()
+                    return
+                  }
+                  setAddMessage(result.message || "This one's already in your library.")
                 }}
                 className="flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-white/5"
               >
@@ -132,6 +136,20 @@ export default function MovieSearch({
                 </span>
               </button>
             ))}
+          </div>
+        )}
+
+        {addMessage && (
+          <div
+            className="mt-2 rounded-xl border px-4 py-3 text-sm italic"
+            style={{
+              background: "rgba(130,40,40,0.16)",
+              borderColor: "rgba(255,120,120,0.28)",
+              color: "rgba(255,200,200,0.9)",
+              fontFamily: "Georgia, serif",
+            }}
+          >
+            {addMessage}
           </div>
         )}
       </div>

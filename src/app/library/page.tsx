@@ -179,6 +179,7 @@ export default function LibraryPage() {
   const [watched, setWatched] = useState<Movie[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedLanguage, setSelectedLanguage] = useState("All")
+  const [searchQuery, setSearchQuery] = useState("")
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
   const [columns, setColumns] = useState(10)
@@ -202,10 +203,7 @@ export default function LibraryPage() {
 
   // Dense poster mosaic masked to digit shape via canvas destination-in (no tainted canvas — proxy same-origin)
   useEffect(() => {
-    if (watched.length === 0) {
-      setCollageUrl(null)
-      return
-    }
+    if (watched.length === 0) return
 
     const count = watched.length
     const CELL = 52
@@ -354,6 +352,16 @@ export default function LibraryPage() {
     "All",
     ...Array.from(new Set(watched.map((m) => m.language).filter(Boolean))).sort(),
   ]
+  const normalizedQuery = searchQuery.trim().toLowerCase()
+  const filteredWatched = watched.filter((film) => {
+    const languageOk =
+      selectedLanguage === "All" || film.language === selectedLanguage
+    if (!normalizedQuery) return languageOk
+    return (
+      languageOk &&
+      `${film.title} ${film.language} ${film.year}`.toLowerCase().includes(normalizedQuery)
+    )
+  })
 
   if (loading) {
     return (
@@ -470,8 +478,26 @@ export default function LibraryPage() {
           padding: "16px 0",
           background:
             "linear-gradient(to bottom, #121419 0%, #121419 60%, transparent 100%)",
+          flexWrap: "wrap",
         }}
       >
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search your library..."
+          style={{
+            minWidth: 220,
+            padding: "8px 12px",
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.05)",
+            color: "rgba(255,255,255,0.85)",
+            fontFamily: "Georgia, serif",
+            fontSize: 13,
+            fontStyle: "italic",
+            outline: "none",
+          }}
+        />
         {languages.map((lang) => (
           <button
             key={lang}
@@ -530,7 +556,7 @@ export default function LibraryPage() {
               transformStyle: "preserve-3d",
             }}
           >
-            {watched.map((film, i) => {
+            {filteredWatched.map((film, i) => {
               const row = Math.floor(i / columns)
               const parallaxOffset =
                 row % 2 === 0 ? scrollY * 0.006 : scrollY * -0.006
@@ -560,6 +586,20 @@ export default function LibraryPage() {
               )
             })}
           </div>
+          {filteredWatched.length === 0 && (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "46px 20px 20px",
+                color: "rgba(255,255,255,0.35)",
+                fontFamily: "Georgia, serif",
+                fontStyle: "italic",
+                fontSize: 15,
+              }}
+            >
+              No films match that search yet.
+            </div>
+          )}
         </div>
       </div>
 

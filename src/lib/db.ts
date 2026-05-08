@@ -1,8 +1,21 @@
 import { supabase } from "./supabase"
 import { Movie, type Recommendation } from "./types"
 
+type MovieRow = {
+  tmdb_id: string
+  title: string
+  year: number
+  language: string
+  poster: string
+  backdrop: string | null
+  watched_at?: string | null
+  rating?: number | string | null
+  review_headline?: string | null
+  review_body?: string | null
+}
+
 // Convert a Supabase row to the app's Movie type
-function rowToMovie(row: any): Movie {
+function rowToMovie(row: MovieRow): Movie {
   return {
     id: row.tmdb_id,
     title: row.title,
@@ -10,6 +23,7 @@ function rowToMovie(row: any): Movie {
     language: row.language,
     poster: row.poster,
     backdrop: row.backdrop || undefined,
+    watchedAt: row.watched_at || undefined,
     rating:
       row.rating != null && row.rating !== ""
         ? Number(row.rating)
@@ -84,7 +98,14 @@ export async function getWatched(): Promise<Movie[]> {
 }
 
 /** rating: 1–10, supports 0.5 (e.g. 7.5) */
-export async function markAsWatched(movie: Movie, rating: number): Promise<boolean> {
+export async function markAsWatched(
+  movie: Movie,
+  rating: number,
+  options?: { reviewBody?: string; watchedAt?: string }
+): Promise<boolean> {
+  const reviewBody = options?.reviewBody?.trim()
+  const watchedAtIso = options?.watchedAt || new Date().toISOString()
+
   // Check for duplicates
   const { data: existing } = await supabase
     .from("watched")
@@ -92,7 +113,23 @@ export async function markAsWatched(movie: Movie, rating: number): Promise<boole
     .eq("tmdb_id", movie.id)
     .limit(1)
 
-  if (existing && existing.length > 0) return false
+  if (existing && existing.length > 0) {
+    const { error: updateError } = await supabase
+      .from("watched")
+      .update({
+        rating,
+        review_body: reviewBody || null,
+        watched_at: watchedAtIso,
+      })
+      .eq("tmdb_id", movie.id)
+    if (updateError) {
+      console.error("Error updating watched movie:", updateError.message)
+      return false
+    }
+    // Remove from watchlist (if it was there)
+    await supabase.from("watchlist").delete().eq("tmdb_id", movie.id)
+    return true
+  }
 
   // Insert into watched table
   const { error: insertError } = await supabase.from("watched").insert({
@@ -103,6 +140,8 @@ export async function markAsWatched(movie: Movie, rating: number): Promise<boole
     poster: movie.poster,
     backdrop: movie.backdrop || null,
     rating,
+    review_body: reviewBody || null,
+    watched_at: watchedAtIso,
   })
   if (insertError) {
     console.error("Error marking as watched:", insertError.message)

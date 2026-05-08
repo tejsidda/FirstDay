@@ -141,6 +141,7 @@ export default function HomeContent() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [titleRevealed, setTitleRevealed] = useState(0)
   const [introComplete, setIntroComplete] = useState(false)
+  const [titleHovered, setTitleHovered] = useState(false)
   const [creditsPaused, setCreditsPaused] = useState(false)
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [recsLoading, setRecsLoading] = useState(false)
@@ -226,6 +227,8 @@ export default function HomeContent() {
       ? watchlist[heroIndex % watchlist.length]
       : watched[0] || null
 
+  const heroBackdrop = heroMovie?.backdrop || heroMovie?.poster
+
   useEffect(() => {
     if (watchlist.length <= 1) return
     const interval = setInterval(() => {
@@ -253,9 +256,21 @@ export default function HomeContent() {
   }, [heroMovie?.id])
 
   const handleAddToWatchlist = async (movie: Movie) => {
+    const alreadyInLibrary = watched.some((m) => m.id === movie.id)
+    if (alreadyInLibrary) {
+      return {
+        ok: false,
+        message: "Already in your library — pick another one?",
+      }
+    }
     const success = await addToWatchlist(movie)
     if (success) {
       setWatchlist((prev) => [movie, ...prev])
+      return { ok: true }
+    }
+    return {
+      ok: false,
+      message: "Already on your watchlist.",
     }
   }
 
@@ -339,10 +354,10 @@ export default function HomeContent() {
             style={{
               position: "absolute",
               inset: -100,
-              backgroundImage: `url(${heroMovie.poster})`,
+              backgroundImage: `url(${heroBackdrop})`,
               backgroundSize: "cover",
               backgroundPosition: "center",
-              filter: "blur(18px) saturate(1.15) brightness(0.55)",
+              filter: "saturate(1.15) brightness(0.55)",
               transform: "scale(1.08)",
               animation: "fadeIn 2s ease-out forwards",
               opacity: 0,
@@ -369,18 +384,24 @@ export default function HomeContent() {
         >
           <div
             style={{
-              fontFamily: "-apple-system, sans-serif",
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.3em",
-              color: "rgba(255,255,255,0.25)",
+              fontFamily: "Georgia, serif",
+              fontSize: 12,
+              fontStyle: "italic",
+              letterSpacing: "0.15em",
+              textTransform: "uppercase",
+              color: "rgba(255,255,255,0.45)",
               marginBottom: 24,
             }}
           >
-            F D F S
+            First Day First Show
           </div>
 
           <h1
+            onMouseEnter={() => setTitleHovered(true)}
+            onMouseLeave={() => setTitleHovered(false)}
+            onClick={() => {
+              if (heroMovie) router.push(`/movie/${heroMovie.id}`)
+            }}
             style={{
               fontFamily: 'Georgia, "Times New Roman", serif',
               fontSize: "clamp(40px, 8vw, 80px)",
@@ -390,6 +411,10 @@ export default function HomeContent() {
               letterSpacing: "-0.02em",
               lineHeight: 1.1,
               minHeight: "1.2em",
+              cursor: heroMovie ? "pointer" : "default",
+              textDecorationLine: titleHovered ? "underline" : "none",
+              textDecorationColor: "rgba(255,255,255,0.35)",
+              textUnderlineOffset: "8px",
             }}
           >
             {heroMovie ? heroMovie.title.slice(0, titleRevealed) : ""}
@@ -421,6 +446,23 @@ export default function HomeContent() {
               ? `${heroMovie.language} · ${heroMovie.year} · from your watchlist`
               : ""}
           </p>
+          {heroMovie && (
+            <p
+              style={{
+                fontFamily: "-apple-system, sans-serif",
+                fontSize: 11,
+                letterSpacing: "0.07em",
+                textTransform: "uppercase",
+                color: titleHovered
+                  ? "rgba(255,255,255,0.55)"
+                  : "rgba(255,255,255,0.28)",
+                marginTop: 10,
+                transition: "color 0.2s ease",
+              }}
+            >
+              Click title to open movie page
+            </p>
+          )}
 
           <div
             style={{
@@ -466,20 +508,20 @@ export default function HomeContent() {
             position: "relative",
             padding: "80px 48px 100px",
             background: "#111114",
-            minHeight: "80vh",
+            minHeight: watched.length > 6 ? "80vh" : "auto",
           }}
         >
-          <div style={{ marginBottom: 48, maxWidth: 500 }}>
+          <div style={{ marginBottom: 48, maxWidth: 520 }}>
             <h2
               style={{
                 fontFamily: "Georgia, serif",
-                fontSize: 32,
+                fontSize: 30,
                 fontWeight: 400,
                 fontStyle: "italic",
                 color: "rgba(255,255,255,0.9)",
               }}
             >
-              recently watched
+              Recently watched
             </h2>
             <p
               style={{
@@ -490,7 +532,7 @@ export default function HomeContent() {
                 marginTop: 8,
               }}
             >
-              your film journal
+              The nights you&apos;ve already spent at the movies.
             </p>
           </div>
 

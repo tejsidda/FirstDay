@@ -7,7 +7,6 @@ import {
   getWatchlist,
   markAsWatched,
   removeFromWatchlist,
-  updateWatchedRating,
 } from "@/lib/db"
 import type { Movie } from "@/lib/types"
 import StandingOvationInput from "@/components/StandingOvationInput"
@@ -196,6 +195,11 @@ export default function WatchlistPage() {
   const [ambientRgb, setAmbientRgb] = useState<[number, number, number]>(DEFAULT_AMBIENT)
   const [isSpinning, setIsSpinning] = useState(false)
   const [showRating, setShowRating] = useState(false)
+  const [showReviewStep, setShowReviewStep] = useState(false)
+  const [pendingRating, setPendingRating] = useState<number | null>(null)
+  const [reviewText, setReviewText] = useState("")
+  const [alreadyWatchedEarlier, setAlreadyWatchedEarlier] = useState(false)
+  const [watchedDate, setWatchedDate] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
   const router = useRouter()
   const stripRef = useRef<HTMLDivElement>(null)
@@ -238,7 +242,26 @@ export default function WatchlistPage() {
 
   useEffect(() => {
     setShowRating(false)
+    setShowReviewStep(false)
+    setPendingRating(null)
+    setReviewText("")
+    setAlreadyWatchedEarlier(false)
+    setWatchedDate("")
   }, [centeredIndex])
+
+  const getTodayDateInput = () => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, "0")
+    const day = String(now.getDate()).padStart(2, "0")
+    return `${year}-${month}-${day}`
+  }
+
+  const dateInputToIso = (value: string) => {
+    const [year, month, day] = value.split("-").map(Number)
+    if (!year || !month || !day) return new Date().toISOString()
+    return new Date(year, month - 1, day, 12, 0, 0).toISOString()
+  }
 
   const syncStripToIndex = useCallback(
     (index: number, length: number, options?: { setState?: boolean }) => {
@@ -283,20 +306,30 @@ export default function WatchlistPage() {
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [watchlist.length, scrollStrip])
 
-  const handleMarkWatched = async (film: Movie, rating: number) => {
+  const handleMarkWatched = async (
+    film: Movie,
+    rating: number,
+    reviewBody?: string,
+    watchedAt?: string
+  ) => {
     if (actionLoading) return
     setActionLoading(true)
     try {
-      let success = await markAsWatched(film, rating)
-      if (!success) {
-        success = await updateWatchedRating(film.id, rating)
-      }
+      const success = await markAsWatched(film, rating, {
+        reviewBody,
+        watchedAt,
+      })
       if (success) {
         const updated = watchlist.filter((m) => m.id !== film.id)
         if (updated.length === 0) {
           setWatchlist([])
           setCenteredIndex(0)
           setShowRating(false)
+          setShowReviewStep(false)
+          setPendingRating(null)
+          setReviewText("")
+          setAlreadyWatchedEarlier(false)
+          setWatchedDate("")
           return
         }
         setWatchlist(updated)
@@ -306,10 +339,34 @@ export default function WatchlistPage() {
             : Math.min(centeredIndex, Math.max(0, updated.length - 1))
         syncStripToIndex(nextIndex, updated.length)
         setShowRating(false)
+        setShowReviewStep(false)
+        setPendingRating(null)
+        setReviewText("")
+        setAlreadyWatchedEarlier(false)
+        setWatchedDate("")
       }
     } finally {
       setActionLoading(false)
     }
+  }
+
+  const handleRatingSelected = (rating: number) => {
+    setPendingRating(rating)
+    setShowRating(false)
+    setShowReviewStep(true)
+    setReviewText("")
+    setAlreadyWatchedEarlier(false)
+    setWatchedDate(getTodayDateInput())
+  }
+
+  const submitWatchedFlow = (skipReview: boolean) => {
+    const film = watchlist[centeredIndex]
+    if (!film || pendingRating == null) return
+    const watchedAt = alreadyWatchedEarlier && watchedDate
+      ? dateInputToIso(watchedDate)
+      : new Date().toISOString()
+    const reviewBody = skipReview ? undefined : reviewText
+    handleMarkWatched(film, pendingRating, reviewBody, watchedAt)
   }
 
   const handleRemove = async (film: Movie) => {
@@ -576,7 +633,7 @@ export default function WatchlistPage() {
                 scrollBehavior: isSpinning ? "auto" : "smooth",
                 scrollSnapType: isSpinning ? "none" : "x mandatory",
                 scrollbarWidth: "none",
-                msOverflowStyle: "none" as any,
+                msOverflowStyle: "none" as const,
               }}
             >
               {watchlist.map((film, i) => (
@@ -788,6 +845,8 @@ export default function WatchlistPage() {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
+                      setPendingRating(null)
+                      setShowReviewStep(false)
                       setShowRating(true)
                     }}
                     style={{
@@ -935,9 +994,9 @@ export default function WatchlistPage() {
                     >
                       <div style={{ width: "100%", maxWidth: 400 }}>
                         <StandingOvationInput
-                          value={null}
+                          value={pendingRating}
                           onChange={(r) => {
-                            handleMarkWatched(watchlist[centeredIndex], r)
+                            handleRatingSelected(r)
                           }}
                         />
                       </div>
@@ -946,6 +1005,7 @@ export default function WatchlistPage() {
                         onClick={(e) => {
                           e.stopPropagation()
                           setShowRating(false)
+                          setPendingRating(null)
                         }}
                         style={{
                           fontFamily: "Georgia, serif",
@@ -960,6 +1020,221 @@ export default function WatchlistPage() {
                       >
                         cancel
                       </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {showReviewStep && !actionLoading && (
+                <>
+                  <div
+                    role="presentation"
+                    aria-hidden
+                    onClick={() => {
+                      setShowReviewStep(false)
+                      setPendingRating(null)
+                    }}
+                    style={{
+                      position: "fixed",
+                      inset: 0,
+                      zIndex: 34,
+                      background: "rgba(8,8,10,0.72)",
+                      backdropFilter: "blur(6px)",
+                      WebkitBackdropFilter: "blur(6px)",
+                    }}
+                  />
+                  <div
+                    role="dialog"
+                    aria-label="Add optional review"
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      position: "fixed",
+                      left: "50%",
+                      bottom: "max(100px, calc(24px + env(safe-area-inset-bottom, 0px)))",
+                      transform: "translateX(-50%)",
+                      zIndex: 36,
+                      width: "min(520px, calc(100vw - 32px))",
+                      padding: "22px 24px 20px",
+                      borderRadius: 14,
+                      background: "rgba(24,24,26,0.96)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      boxShadow: "0 16px 48px rgba(0,0,0,0.55)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: "Georgia, serif",
+                        fontSize: 13,
+                        fontStyle: "italic",
+                        color: "rgba(255,255,255,0.75)",
+                        textAlign: "center",
+                        marginBottom: 14,
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      {watchlist[centeredIndex]?.title}
+                      {pendingRating != null ? ` · ${pendingRating}/10` : ""}
+                    </div>
+
+                    <div style={{ display: "grid", gap: 12 }}>
+                      <label
+                        style={{
+                          fontFamily: "-apple-system, sans-serif",
+                          fontSize: 11,
+                          letterSpacing: "0.06em",
+                          textTransform: "uppercase",
+                          color: "rgba(255,255,255,0.45)",
+                        }}
+                      >
+                        Optional review
+                      </label>
+                      <textarea
+                        value={reviewText}
+                        onChange={(e) => setReviewText(e.target.value)}
+                        placeholder="Write a quick thought... (optional)"
+                        rows={4}
+                        style={{
+                          width: "100%",
+                          resize: "vertical",
+                          borderRadius: 10,
+                          border: "1px solid rgba(255,255,255,0.12)",
+                          background: "rgba(255,255,255,0.04)",
+                          color: "rgba(255,255,255,0.86)",
+                          padding: "10px 12px",
+                          fontFamily: "Georgia, serif",
+                          fontSize: 13,
+                          fontStyle: "italic",
+                          outline: "none",
+                        }}
+                      />
+
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          fontFamily: "-apple-system, sans-serif",
+                          fontSize: 12,
+                          color: "rgba(255,255,255,0.62)",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={alreadyWatchedEarlier}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            setAlreadyWatchedEarlier(checked)
+                            if (checked && !watchedDate) setWatchedDate(getTodayDateInput())
+                          }}
+                        />
+                        Already watched earlier?
+                      </label>
+
+                      {alreadyWatchedEarlier && (
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <label
+                            style={{
+                              fontFamily: "-apple-system, sans-serif",
+                              fontSize: 11,
+                              letterSpacing: "0.06em",
+                              textTransform: "uppercase",
+                              color: "rgba(255,255,255,0.45)",
+                            }}
+                          >
+                            Watched on
+                          </label>
+                          <input
+                            type="date"
+                            value={watchedDate}
+                            max={getTodayDateInput()}
+                            onChange={(e) => setWatchedDate(e.target.value)}
+                            style={{
+                              borderRadius: 10,
+                              border: "1px solid rgba(255,255,255,0.12)",
+                              background: "rgba(255,255,255,0.04)",
+                              color: "rgba(255,255,255,0.86)",
+                              padding: "10px 12px",
+                              fontFamily: "-apple-system, sans-serif",
+                              fontSize: 13,
+                              outline: "none",
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: 16,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 10,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowReviewStep(false)
+                          setPendingRating(null)
+                        }}
+                        style={{
+                          fontFamily: "Georgia, serif",
+                          fontSize: 11,
+                          fontStyle: "italic",
+                          color: "rgba(255,255,255,0.35)",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: "6px 8px",
+                        }}
+                      >
+                        cancel
+                      </button>
+
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            submitWatchedFlow(true)
+                          }}
+                          style={{
+                            fontFamily: "-apple-system, sans-serif",
+                            fontSize: 11,
+                            letterSpacing: "0.04em",
+                            color: "rgba(255,255,255,0.7)",
+                            background: "rgba(255,255,255,0.08)",
+                            border: "1px solid rgba(255,255,255,0.14)",
+                            borderRadius: 8,
+                            padding: "8px 12px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Skip review
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            submitWatchedFlow(false)
+                          }}
+                          style={{
+                            fontFamily: "-apple-system, sans-serif",
+                            fontSize: 11,
+                            letterSpacing: "0.04em",
+                            color: "rgba(20,20,22,0.9)",
+                            background: "rgba(255,255,255,0.9)",
+                            border: "1px solid rgba(255,255,255,0.2)",
+                            borderRadius: 8,
+                            padding: "8px 12px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Save watched entry
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </>
