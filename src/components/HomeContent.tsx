@@ -11,7 +11,6 @@ import {
   markRecommendationShown,
   getUnshownRecommendations,
 } from "@/lib/db"
-import { supabase } from "@/lib/supabase"
 import { getRecommendations, refreshRecommendations } from "@/lib/recommend"
 import { Movie, type Recommendation } from "@/lib/types"
 import RatingDisplay from "@/components/RatingDisplay"
@@ -49,13 +48,13 @@ function PolaroidCard({
       <div
         style={{
           background: hovered
-            ? "rgba(255,255,255,0.07)"
-            : "rgba(255,255,255,0.04)",
+            ? "var(--tint-surface-hover)"
+            : "var(--tint-ghost)",
           padding: "10px 10px 16px 10px",
           borderRadius: 4,
           boxShadow: hovered
-            ? "0 20px 50px rgba(17,17,20,0.7), 0 0 1px rgba(255,255,255,0.08)"
-            : "0 4px 16px rgba(17,17,20,0.5)",
+            ? "0 20px 50px var(--shadow-card), 0 0 1px var(--border-subtle)"
+            : "0 4px 16px var(--shadow-float)",
           transition: "all 0.4s ease",
         }}
       >
@@ -84,33 +83,43 @@ function PolaroidCard({
               position: "absolute",
               inset: 0,
               background:
-                "linear-gradient(to top, rgba(0,0,0,0.78), rgba(0,0,0,0.45), transparent 55%)",
+                "linear-gradient(to top, var(--scrim-hero), var(--scrim-mid), transparent 55%)",
               opacity: hovered ? 1 : 0.9,
               transition: "opacity 0.3s ease",
               pointerEvents: "none",
             }}
           />
 
-          {/* Title + rating over the gradient */}
+          {/* Title + rating — bottom-right on poster */}
           <div
             style={{
               position: "absolute",
               left: 10,
               right: 10,
               bottom: 10,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-end",
+              textAlign: "right",
             }}
           >
             <div
               style={{
                 fontFamily: "Georgia, serif",
-                fontSize: 12,
+                fontSize: 13,
                 fontStyle: "italic",
-                color: "rgba(255,255,255,0.96)",
+                color: hovered
+                  ? "var(--text-inverse)"
+                  : "var(--text-strong)",
                 textShadow:
-                  "0 2px 6px rgba(0,0,0,0.9), 0 0 12px rgba(0,0,0,0.8)",
-                whiteSpace: "nowrap",
+                  "0 2px 6px var(--scrim-edge), 0 0 12px var(--scrim-blur)",
+                maxWidth: "100%",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                transition: "color 0.35s ease",
               }}
             >
               {film.title}
@@ -136,6 +145,7 @@ function PolaroidCard({
 export default function HomeContent() {
   const [watchlist, setWatchlist] = useState<Movie[]>([])
   const [watched, setWatched] = useState<Movie[]>([])
+  const [isMobile, setIsMobile] = useState(false)
   const [heroIndex, setHeroIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -145,16 +155,19 @@ export default function HomeContent() {
   const [creditsPaused, setCreditsPaused] = useState(false)
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [recsLoading, setRecsLoading] = useState(false)
+  const [heroVisualOpacity, setHeroVisualOpacity] = useState(1)
+  const [pastHeroFold, setPastHeroFold] = useState(false)
   const router = useRouter()
+  const heroAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ambientCacheRef = useRef<Record<string, [number, number, number]>>({})
   const recsHydratedRef = useRef(false)
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data } = await supabase.auth.getUser()
-      console.log("USER ID:", data.user?.id)
-    }
-    getUser()
+    const media = window.matchMedia("(max-width: 768px)")
+    const update = () => setIsMobile(media.matches)
+    update()
+    media.addEventListener("change", update)
+    return () => media.removeEventListener("change", update)
   }, [])
 
   useEffect(() => {
@@ -228,14 +241,30 @@ export default function HomeContent() {
       : watched[0] || null
 
   const heroBackdrop = heroMovie?.backdrop || heroMovie?.poster
+  const heroPoster = heroMovie?.poster
 
   useEffect(() => {
     if (watchlist.length <= 1) return
     const interval = setInterval(() => {
-      setHeroIndex((prev) => (prev + 1) % watchlist.length)
-    }, 4500)
-    return () => clearInterval(interval)
+      setHeroVisualOpacity(0)
+      heroAdvanceTimerRef.current = setTimeout(() => {
+        setHeroIndex((prev) => (prev + 1) % watchlist.length)
+        setHeroVisualOpacity(1)
+        heroAdvanceTimerRef.current = null
+      }, 1000)
+    }, 10000)
+    return () => {
+      clearInterval(interval)
+      if (heroAdvanceTimerRef.current) clearTimeout(heroAdvanceTimerRef.current)
+    }
   }, [watchlist.length])
+
+  useEffect(() => {
+    const onScroll = () => setPastHeroFold(window.scrollY > 80)
+    onScroll()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [])
 
   // Typing effect for hero title
   useEffect(() => {
@@ -251,7 +280,7 @@ export default function HomeContent() {
         clearInterval(interval)
         setTimeout(() => setIntroComplete(true), 800)
       }
-    }, 80)
+    }, 95)
     return () => clearInterval(interval)
   }, [heroMovie?.id])
 
@@ -274,23 +303,34 @@ export default function HomeContent() {
     }
   }
 
+  const recentlyWatchedDisplayCount = isMobile ? 6 : 12
+
   const polaroidStyles = useMemo(() => {
-    return watched.slice(0, 12).map(() => ({
+    const n = Math.min(recentlyWatchedDisplayCount, watched.length)
+    if (n === 0) return []
+    if (isMobile) {
+      return Array.from({ length: n }, () => ({
+        rotation: 0,
+        offsetX: 0,
+        offsetY: 0,
+      }))
+    }
+    return watched.slice(0, n).map(() => ({
       rotation: (Math.random() - 0.5) * 16,
       offsetX: (Math.random() - 0.5) * 30,
       offsetY: (Math.random() - 0.5) * 20,
     }))
-  }, [watched.length])
+  }, [isMobile, watched.length, recentlyWatchedDisplayCount])
 
   if (loading) {
     return (
       <main
         className="relative text-white min-h-screen flex items-center justify-center"
-        style={{ background: "#111114" }}
+        style={{ background: "var(--background-raised)" }}
       >
         <p
           style={{
-            color: "rgba(255,255,255,0.3)",
+            color: "var(--text-search)",
             fontStyle: "italic",
             fontFamily: "Georgia, serif",
             fontSize: 16,
@@ -305,7 +345,7 @@ export default function HomeContent() {
   return (
     <main
       className="relative text-white"
-      style={{ background: "#111114", minHeight: "100vh" }}
+      style={{ background: "var(--background-raised)", minHeight: "100vh" }}
     >
       <style>{`
         @keyframes fadeIn {
@@ -332,24 +372,37 @@ export default function HomeContent() {
         height: 600,
         transform: 'translateX(-50%)',
         borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(255,255,255,0.035) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, var(--ambient-orb) 0%, transparent 70%)',
         animation: 'ambientDrift 25s ease-in-out infinite',
         pointerEvents: 'none',
         zIndex: 0,
       }} />
 
-      {/* Section 1: The Opening */}
+      {/* Section 1: The Opening — desktop: cinematic backdrop; mobile: poster + typography (no wide backdrop crop) */}
       <section
         style={{
           position: "relative",
-          height: "100vh",
-          overflow: "hidden",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          ...(isMobile
+            ? {
+                minHeight: "100svh",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "72px 20px 48px",
+                background:
+                  "linear-gradient(180deg, var(--background-raised) 0%, var(--background-mid) 45%, var(--background-raised) 100%)",
+              }
+            : {
+                height: "100vh",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }),
         }}
       >
-        {heroMovie && (
+        {!isMobile && heroMovie && (
           <div
             style={{
               position: "absolute",
@@ -359,8 +412,8 @@ export default function HomeContent() {
               backgroundPosition: "center",
               filter: "saturate(1.15) brightness(0.55)",
               transform: "scale(1.08)",
-              animation: "fadeIn 2s ease-out forwards",
-              opacity: 0,
+              opacity: heroVisualOpacity,
+              transition: "opacity 1.1s cubic-bezier(0.33, 1, 0.68, 1)",
             }}
           />
         )}
@@ -369,8 +422,16 @@ export default function HomeContent() {
           style={{
             position: "absolute",
             inset: 0,
-            background:
-              "radial-gradient(ellipse at center, rgba(17,17,20,0.3) 0%, rgba(17,17,20,0.7) 100%)",
+            ...(isMobile
+              ? {
+                  background:
+                    "radial-gradient(ellipse 90% 60% at 50% 20%, var(--tint-ghost) 0%, transparent 55%)",
+                  pointerEvents: "none",
+                }
+              : {
+                  background:
+                    "radial-gradient(ellipse at center, var(--vignette-soft) 0%, var(--vignette-deep) 100%)",
+                }),
           }}
         />
 
@@ -379,97 +440,197 @@ export default function HomeContent() {
             position: "relative",
             zIndex: 10,
             textAlign: "center",
-            padding: "0 48px",
+            padding: isMobile ? "0" : "0 48px",
+            width: "100%",
+            maxWidth: isMobile ? 420 : "none",
+            marginLeft: "auto",
+            marginRight: "auto",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
           }}
         >
           <div
             style={{
               fontFamily: "Georgia, serif",
-              fontSize: 12,
+              fontSize: isMobile ? 11 : 13,
               fontStyle: "italic",
-              letterSpacing: "0.15em",
+              letterSpacing: "0.18em",
               textTransform: "uppercase",
-              color: "rgba(255,255,255,0.45)",
-              marginBottom: 24,
+              color: "var(--text-label)",
+              marginBottom: isMobile ? 20 : 28,
             }}
           >
             First Day First Show
           </div>
 
-          <h1
-            onMouseEnter={() => setTitleHovered(true)}
-            onMouseLeave={() => setTitleHovered(false)}
-            onClick={() => {
-              if (heroMovie) router.push(`/movie/${heroMovie.id}`)
-            }}
+          <div
             style={{
-              fontFamily: 'Georgia, "Times New Roman", serif',
-              fontSize: "clamp(40px, 8vw, 80px)",
-              fontWeight: 400,
-              fontStyle: "italic",
-              color: "rgba(255,255,255,0.9)",
-              letterSpacing: "-0.02em",
-              lineHeight: 1.1,
-              minHeight: "1.2em",
-              cursor: heroMovie ? "pointer" : "default",
-              textDecorationLine: titleHovered ? "underline" : "none",
-              textDecorationColor: "rgba(255,255,255,0.35)",
-              textUnderlineOffset: "8px",
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              opacity: heroVisualOpacity,
+              transition: "opacity 1.1s cubic-bezier(0.33, 1, 0.68, 1)",
             }}
           >
-            {heroMovie ? heroMovie.title.slice(0, titleRevealed) : ""}
-            <span
+          {heroMovie && (heroPoster || heroBackdrop) && (
+            <button
+              type="button"
+              onClick={() => router.push(`/movie/${heroMovie.id}`)}
               style={{
-                borderRight:
-                  titleRevealed < (heroMovie?.title.length || 0)
-                    ? "2px solid rgba(255,255,255,0.5)"
-                    : "none",
-                animation: "blink 0.8s step-end infinite",
-                marginLeft: 2,
+                marginBottom: isMobile ? 22 : 26,
+                padding: 0,
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+                borderRadius: 12,
+                overflow: "hidden",
+                width: isMobile ? "min(200px, 48vw)" : "min(300px, 26vw)",
+                flexShrink: 0,
+                boxShadow:
+                  "0 28px 56px var(--shadow-deep), 0 0 0 1px var(--border-default)",
+                position: "relative",
               }}
-            />
-          </h1>
+              aria-label={`Open ${heroMovie.title}`}
+            >
+              <div
+                style={{
+                  position: "relative",
+                  aspectRatio: "2 / 3",
+                  width: "100%",
+                }}
+              >
+                <img
+                  src={heroPoster || heroBackdrop || ""}
+                  alt=""
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    display: "block",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background:
+                      "linear-gradient(to top, var(--scrim-deep), var(--scrim-fade), transparent 52%)",
+                    pointerEvents: "none",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 12,
+                    right: 12,
+                    bottom: 12,
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    textAlign: "right",
+                  }}
+                >
+                  <h1
+                    onMouseEnter={() => setTitleHovered(true)}
+                    onMouseLeave={() => setTitleHovered(false)}
+                    style={{
+                      margin: 0,
+                      maxWidth: "100%",
+                      fontFamily: 'Georgia, "Times New Roman", serif',
+                      fontSize: isMobile
+                        ? "clamp(16px, 4.5vw, 24px)"
+                        : "clamp(20px, 2.2vw, 32px)",
+                      fontWeight: 400,
+                      fontStyle: "italic",
+                      color: titleHovered
+                        ? "var(--text-inverse)"
+                        : "var(--text-strong)",
+                      letterSpacing: "-0.02em",
+                      lineHeight: 1.15,
+                      cursor: "pointer",
+                      textShadow:
+                        "0 2px 14px var(--scrim-title), 0 0 1px var(--scrim-edge)",
+                      transition: "color 0.35s ease",
+                    }}
+                  >
+                    {heroMovie.title.slice(0, titleRevealed)}
+                    <span
+                      style={{
+                        borderRight:
+                          titleRevealed < heroMovie.title.length
+                            ? "2px solid var(--cursor-line)"
+                            : "none",
+                        animation: "blink 0.8s step-end infinite",
+                        marginLeft: 3,
+                      }}
+                    />
+                  </h1>
+                </div>
+              </div>
+            </button>
+          )}
 
           <p
             style={{
               fontFamily: "Georgia, serif",
-              fontSize: 15,
+              fontSize: isMobile ? 15 : 17,
               fontStyle: "italic",
-              color: "rgba(255,255,255,0.3)",
-              marginTop: 16,
+              color: "var(--text-dim)",
+              marginTop: isMobile ? 6 : 8,
               opacity: introComplete ? 1 : 0,
               transform: introComplete ? "translateY(0)" : "translateY(10px)",
-              transition: "opacity 0.8s ease, transform 0.8s ease",
+              transition: "opacity 0.85s ease, transform 0.85s ease",
             }}
           >
             {heroMovie
               ? `${heroMovie.language} · ${heroMovie.year} · from your watchlist`
               : ""}
           </p>
-          {heroMovie && (
+          {heroMovie && introComplete && !pastHeroFold && (
+            <p
+              style={{
+                fontFamily: "-apple-system, sans-serif",
+                fontSize: isMobile ? 11 : 12,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: titleHovered
+                  ? "var(--text-hint-hover)"
+                  : "var(--text-hint)",
+                marginTop: 14,
+                transition: "color 0.35s ease",
+              }}
+            >
+              {isMobile
+                ? "Tap poster or title to open"
+                : "Click title to open movie page"}
+            </p>
+          )}
+
+          {isMobile && watchlist.length > 1 && (
             <p
               style={{
                 fontFamily: "-apple-system, sans-serif",
                 fontSize: 11,
-                letterSpacing: "0.07em",
+                letterSpacing: "0.14em",
                 textTransform: "uppercase",
-                color: titleHovered
-                  ? "rgba(255,255,255,0.55)"
-                  : "rgba(255,255,255,0.28)",
-                marginTop: 10,
-                transition: "color 0.2s ease",
+                color: "var(--text-search)",
+                marginTop: 16,
               }}
             >
-              Click title to open movie page
+              {(heroIndex % watchlist.length) + 1} / {watchlist.length} on your
+              watchlist
             </p>
           )}
+          </div>
 
           <div
             style={{
-              position: "absolute",
-              bottom: -120,
-              left: "50%",
-              transform: "translateX(-50%)",
+              position: isMobile ? "relative" : "absolute",
+              bottom: isMobile ? undefined : -120,
+              left: isMobile ? undefined : "50%",
+              transform: isMobile ? undefined : "translateX(-50%)",
+              marginTop: isMobile ? 28 : undefined,
               opacity: introComplete ? 1 : 0,
               transition: "opacity 1s ease 0.5s",
               display: "flex",
@@ -483,16 +644,16 @@ export default function HomeContent() {
                 width: 1,
                 height: 30,
                 background:
-                  "linear-gradient(to bottom, transparent, rgba(255,255,255,0.2))",
+                  "linear-gradient(to bottom, transparent, var(--glow-line))",
               }}
             />
             <span
               style={{
                 fontFamily: "-apple-system, sans-serif",
-                fontSize: 8,
-                letterSpacing: "0.25em",
+                fontSize: 10,
+                letterSpacing: "0.22em",
                 textTransform: "uppercase",
-                color: "rgba(255,255,255,0.2)",
+                color: "var(--text-ghost)",
               }}
             >
               Your cinema awaits
@@ -506,19 +667,20 @@ export default function HomeContent() {
         <section
           style={{
             position: "relative",
-            padding: "80px 48px 100px",
-            background: "#111114",
-            minHeight: watched.length > 6 ? "80vh" : "auto",
+            padding: isMobile ? "56px 20px 80px" : "96px 56px 120px",
+            background: "var(--background-raised)",
+            minHeight: isMobile ? "auto" : watched.length > 6 ? "80vh" : "auto",
           }}
         >
-          <div style={{ marginBottom: 48, maxWidth: 520 }}>
+          <div style={{ marginBottom: isMobile ? 36 : 56, maxWidth: 560 }}>
             <h2
               style={{
                 fontFamily: "Georgia, serif",
-                fontSize: 30,
+                fontSize: isMobile ? 28 : 36,
                 fontWeight: 400,
                 fontStyle: "italic",
-                color: "rgba(255,255,255,0.9)",
+                color: "var(--text-strong)",
+                letterSpacing: "-0.01em",
               }}
             >
               Recently watched
@@ -526,10 +688,11 @@ export default function HomeContent() {
             <p
               style={{
                 fontFamily: "Georgia, serif",
-                fontSize: 13,
+                fontSize: isMobile ? 15 : 17,
                 fontStyle: "italic",
-                color: "rgba(255,255,255,0.25)",
-                marginTop: 8,
+                color: "var(--text-faint)",
+                marginTop: 14,
+                lineHeight: 1.55,
               }}
             >
               The nights you&apos;ve already spent at the movies.
@@ -539,12 +702,16 @@ export default function HomeContent() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-              gap: 32,
+              gridTemplateColumns: isMobile
+                ? "repeat(2, minmax(0, 1fr))"
+                : "repeat(auto-fill, minmax(180px, 1fr))",
+              gap: isMobile ? 20 : 36,
               maxWidth: 1200,
             }}
           >
-            {watched.slice(0, 12).map((film, i) => (
+            {watched
+              .slice(0, recentlyWatchedDisplayCount)
+              .map((film, i) => (
               <PolaroidCard
                 key={film.id}
                 film={film}
@@ -556,26 +723,30 @@ export default function HomeContent() {
             ))}
           </div>
 
-          {watched.length > 12 && (
-            <div style={{ marginTop: 48, textAlign: "center" }}>
+          {watched.length > recentlyWatchedDisplayCount && (
+            <div style={{ marginTop: 56, textAlign: "center" }}>
               <a
                 href="/library"
                 style={{
                   fontFamily: "Georgia, serif",
-                  fontSize: 13,
+                  fontSize: isMobile ? 15 : 17,
                   fontStyle: "italic",
-                  color: "rgba(255,255,255,0.25)",
+                  color: "var(--text-link)",
                   textDecoration: "none",
-                  borderBottom: "1px solid rgba(255,255,255,0.1)",
-                  paddingBottom: 2,
-                  transition: "color 0.2s ease",
+                  borderBottom: "1px solid var(--border-hover)",
+                  paddingBottom: 4,
+                  transition: "color 0.3s ease, border-color 0.3s ease",
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.color = "rgba(255,255,255,0.5)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.color = "rgba(255,255,255,0.25)")
-                }
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "var(--text-link-hover)"
+                  e.currentTarget.style.borderBottomColor =
+                    "var(--border-accent)"
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "var(--text-link)"
+                  e.currentTarget.style.borderBottomColor =
+                    "var(--border-hover)"
+                }}
               >
                 view your full library →
               </a>
@@ -588,29 +759,30 @@ export default function HomeContent() {
       {(
         <section
           style={{
-            padding: "80px 48px",
-            background: "#080808",
+            padding: isMobile ? "56px 20px 72px" : "96px 56px 112px",
+            background: "var(--background-sunken)",
             position: "relative",
           }}
         >
-          <div style={{ textAlign: "center", marginBottom: 48 }}>
+          <div style={{ textAlign: "center", marginBottom: isMobile ? 40 : 56 }}>
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 16,
+                gap: 20,
                 flexWrap: "wrap",
               }}
             >
               <h2
                 style={{
                   fontFamily: "Georgia, serif",
-                  fontSize: 28,
+                  fontSize: isMobile ? 30 : 38,
                   fontWeight: 400,
                   fontStyle: "italic",
-                  color: "rgba(255,255,255,0.8)",
+                  color: "var(--text-display)",
                   margin: 0,
+                  letterSpacing: "-0.02em",
                 }}
               >
                 picked for you
@@ -621,23 +793,26 @@ export default function HomeContent() {
                   onClick={() => handleRefreshRecommendations()}
                   style={{
                     fontFamily: "-apple-system, sans-serif",
-                    fontSize: 11,
-                    color: "rgba(255,255,255,0.35)",
-                    background: "rgba(255,255,255,0.06)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 6,
-                    padding: "6px 12px",
+                    fontSize: 12,
+                    color: "var(--text-link)",
+                    background: "var(--tint-base)",
+                    border: "1px solid var(--border-default)",
+                    borderRadius: 8,
+                    padding: "8px 14px",
                     cursor: "pointer",
                     textTransform: "uppercase",
-                    letterSpacing: "0.08em",
+                    letterSpacing: "0.1em",
+                    transition: "color 0.3s ease, border-color 0.3s ease, background 0.3s ease",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.color = "rgba(255,255,255,0.55)"
-                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"
+                    e.currentTarget.style.color = "var(--text-emphasis)"
+                    e.currentTarget.style.borderColor = "var(--border-focus)"
+                    e.currentTarget.style.background = "var(--tint-hover)"
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.color = "rgba(255,255,255,0.35)"
-                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"
+                    e.currentTarget.style.color = "var(--text-link)"
+                    e.currentTarget.style.borderColor = "var(--border-default)"
+                    e.currentTarget.style.background = "var(--tint-base)"
                   }}
                 >
                   Refresh recommendations
@@ -647,10 +822,11 @@ export default function HomeContent() {
             <p
               style={{
                 fontFamily: "Georgia, serif",
-                fontSize: 13,
+                fontSize: isMobile ? 15 : 17,
                 fontStyle: "italic",
-                color: "rgba(255,255,255,0.25)",
-                marginTop: 8,
+                color: "var(--text-faint)",
+                marginTop: 14,
+                lineHeight: 1.5,
               }}
             >
               based on your taste
@@ -666,21 +842,21 @@ export default function HomeContent() {
                   fontFamily: "Georgia, serif",
                   fontSize: 15,
                   fontStyle: "italic",
-                  color: "rgba(255,255,255,0.5)",
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  color: "var(--text-button)",
+                  background: "var(--tint-base)",
+                  border: "1px solid var(--border-default)",
                   borderRadius: 999,
                   padding: "14px 32px",
                   cursor: "pointer",
                   transition: "all 0.2s ease",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "rgba(255,255,255,0.75)"
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"
+                  e.currentTarget.style.color = "var(--text-button-hover)"
+                  e.currentTarget.style.borderColor = "var(--border-strong)"
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "rgba(255,255,255,0.5)"
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"
+                  e.currentTarget.style.color = "var(--text-button)"
+                  e.currentTarget.style.borderColor = "var(--border-default)"
                 }}
               >
                 Get personalized recommendations
@@ -695,7 +871,7 @@ export default function HomeContent() {
                   fontFamily: "Georgia, serif",
                   fontSize: 14,
                   fontStyle: "italic",
-                  color: "rgba(255,255,255,0.2)",
+                  color: "var(--text-faint-ui)",
                 }}
               >
                 Finding films you&apos;ll love...
@@ -705,7 +881,7 @@ export default function HomeContent() {
             <div
               style={{
                 display: "flex",
-                gap: 32,
+                  gap: isMobile ? 16 : 32,
                 justifyContent: "center",
                 flexWrap: "wrap",
                 maxWidth: 1100,
@@ -713,20 +889,34 @@ export default function HomeContent() {
                 marginRight: "auto",
               }}
             >
-              {recommendations.map((rec, i) => (
+              {(isMobile
+                ? recommendations.slice(0, 4)
+                : recommendations
+              ).map((rec, i) => (
                 <div
                   key={rec.id || `${rec.tmdbId}-${i}`}
                   style={{
-                    width: 180,
-                    transition: "transform 0.3s ease",
                     position: "relative",
+                    width: isMobile ? 160 : 180,
+                    transition: "transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
                   }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.transform = "translateY(-8px)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.transform = "translateY(0)")
-                  }
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-8px)"
+                    const t = e.currentTarget.querySelector(
+                      "[data-rec-title]",
+                    ) as HTMLElement | null
+                    if (t) {
+                      t.style.color = "var(--text-inverse)"
+                      t.style.transition = "color 0.35s ease"
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)"
+                    const t = e.currentTarget.querySelector(
+                      "[data-rec-title]",
+                    ) as HTMLElement | null
+                    if (t) t.style.color = "var(--text-emphasis)"
+                  }}
                 >
                   <button
                     type="button"
@@ -740,10 +930,10 @@ export default function HomeContent() {
                       right: 4,
                       zIndex: 2,
                       fontFamily: "-apple-system, sans-serif",
-                      fontSize: 9,
-                      color: "rgba(255,255,255,0.45)",
-                      background: "rgba(0,0,0,0.5)",
-                      border: "1px solid rgba(255,255,255,0.12)",
+                      fontSize: isMobile ? 8 : 9,
+                      color: "var(--text-badge)",
+                      background: "var(--panel-overlay)",
+                      border: "1px solid var(--border-muted)",
                       borderRadius: 4,
                       padding: "4px 8px",
                       cursor: "pointer",
@@ -776,7 +966,7 @@ export default function HomeContent() {
                       aspectRatio: "2/3",
                       borderRadius: 8,
                       overflow: "hidden",
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                      boxShadow: "0 8px 24px var(--shadow-poster)",
                       marginBottom: 12,
                     }}
                   >
@@ -797,7 +987,7 @@ export default function HomeContent() {
                           width: "100%",
                           height: "100%",
                           background:
-                            "linear-gradient(145deg, #1a1a2d, #0a0a14)",
+                            "linear-gradient(145deg, var(--background-elevated), var(--background-sunken))",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -805,7 +995,7 @@ export default function HomeContent() {
                       >
                         <span
                           style={{
-                            color: "rgba(255,255,255,0.2)",
+                            color: "var(--text-faint-ui)",
                             fontSize: 12,
                           }}
                         >
@@ -817,12 +1007,14 @@ export default function HomeContent() {
                   <div
                     style={{
                       fontFamily: "Georgia, serif",
-                      fontSize: 14,
+                      fontSize: isMobile ? 15 : 16,
                       fontWeight: 400,
                       fontStyle: "italic",
-                      color: "rgba(255,255,255,0.8)",
-                      lineHeight: 1.3,
+                      color: "var(--text-emphasis)",
+                      lineHeight: 1.35,
+                      transition: "color 0.35s ease",
                     }}
+                    data-rec-title
                   >
                     {rec.title}
                   </div>
@@ -830,7 +1022,7 @@ export default function HomeContent() {
                     style={{
                       fontFamily: "-apple-system, sans-serif",
                       fontSize: 11,
-                      color: "rgba(255,255,255,0.3)",
+                      color: "var(--text-search)",
                       marginTop: 4,
                     }}
                   >
@@ -841,7 +1033,7 @@ export default function HomeContent() {
                       fontFamily: "Georgia, serif",
                       fontSize: 11,
                       fontStyle: "italic",
-                      color: "rgba(255,255,255,0.35)",
+                      color: "var(--text-quote)",
                       marginTop: 8,
                       lineHeight: 1.5,
                     }}
@@ -852,7 +1044,7 @@ export default function HomeContent() {
                     style={{
                       fontFamily: "-apple-system, sans-serif",
                       fontSize: 9,
-                      color: "rgba(255,255,255,0.15)",
+                      color: "var(--text-micro)",
                       marginTop: 8,
                       textTransform: "uppercase",
                       letterSpacing: "0.1em",
@@ -873,20 +1065,21 @@ export default function HomeContent() {
         <section
           style={{
             position: "relative",
-            padding: "60px 0",
-            background: "#111114",
+            padding: isMobile ? "56px 0 48px" : "80px 0 64px",
+            background: "var(--background-raised)",
             overflow: "hidden",
             minHeight: "60vh",
           }}
         >
-          <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <div style={{ textAlign: "center", marginBottom: isMobile ? 48 : 56 }}>
             <h2
               style={{
                 fontFamily: "Georgia, serif",
-                fontSize: 32,
+                fontSize: isMobile ? 28 : 36,
                 fontWeight: 400,
                 fontStyle: "italic",
-                color: "rgba(255,255,255,0.9)",
+                color: "var(--text-strong)",
+                letterSpacing: "-0.01em",
               }}
             >
               want to watch
@@ -894,10 +1087,11 @@ export default function HomeContent() {
             <p
               style={{
                 fontFamily: "Georgia, serif",
-                fontSize: 13,
+                fontSize: isMobile ? 15 : 17,
                 fontStyle: "italic",
-                color: "rgba(255,255,255,0.25)",
-                marginTop: 8,
+                color: "var(--text-faint)",
+                marginTop: 14,
+                lineHeight: 1.55,
               }}
             >
               your upcoming screenings
@@ -911,7 +1105,7 @@ export default function HomeContent() {
               left: 0,
               right: 0,
               height: 80,
-              background: "linear-gradient(to bottom, #111114, transparent)",
+              background: "linear-gradient(to bottom, var(--background-raised), transparent)",
               zIndex: 5,
               pointerEvents: "none",
             }}
@@ -923,7 +1117,7 @@ export default function HomeContent() {
               left: 0,
               right: 0,
               height: 80,
-              background: "linear-gradient(to top, #111114, transparent)",
+              background: "linear-gradient(to top, var(--background-raised), transparent)",
               zIndex: 5,
               pointerEvents: "none",
             }}
@@ -941,7 +1135,7 @@ export default function HomeContent() {
             <div
               style={{
                 animationName: "creditsScroll",
-                animationDuration: `${Math.max(watchlist.length * 4, 12)}s`,
+                animationDuration: `${Math.max(watchlist.length * 9, 36)}s`,
                 animationTimingFunction: "linear",
                 animationIterationCount: "infinite",
                 animationPlayState: creditsPaused ? "paused" : "running",
@@ -957,18 +1151,28 @@ export default function HomeContent() {
                     display: "flex",
                     alignItems: "center",
                     gap: 24,
-                    padding: "16px 48px",
+                    padding: isMobile ? "16px 20px" : "20px 56px",
                     textDecoration: "none",
-                    transition: "background 0.2s ease",
+                    transition: "background 0.35s ease",
                     cursor: "pointer",
                   }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background =
-                      "rgba(255,255,255,0.03)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "transparent")
-                  }
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "var(--tint-row)"
+                    const t = e.currentTarget.querySelector(
+                      "[data-credit-title]",
+                    ) as HTMLElement | null
+                    if (t) {
+                      t.style.color = "var(--text-row-hover)"
+                      t.style.transition = "color 0.35s ease"
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent"
+                    const t = e.currentTarget.querySelector(
+                      "[data-credit-title]",
+                    ) as HTMLElement | null
+                    if (t) t.style.color = "var(--text-subdued)"
+                  }}
                 >
                   <img
                     src={film.poster}
@@ -982,13 +1186,15 @@ export default function HomeContent() {
                     }}
                   />
                   <div
+                    data-credit-title
                     style={{
                       flex: 1,
                       fontFamily: "Georgia, serif",
-                      fontSize: 18,
+                      fontSize: isMobile ? 16 : 19,
                       fontWeight: 400,
                       fontStyle: "italic",
-                      color: "rgba(255,255,255,0.6)",
+                      color: "var(--text-subdued)",
+                      transition: "color 0.35s ease",
                     }}
                   >
                     {film.title}
@@ -996,8 +1202,8 @@ export default function HomeContent() {
                   <div
                     style={{
                       fontFamily: "-apple-system, sans-serif",
-                      fontSize: 11,
-                      color: "rgba(255,255,255,0.25)",
+                      fontSize: isMobile ? 10 : 11,
+                      color: "var(--text-caption)",
                       letterSpacing: "0.08em",
                       flexShrink: 0,
                     }}
@@ -1012,7 +1218,7 @@ export default function HomeContent() {
           <div
             style={{
               textAlign: "center",
-              marginTop: 32,
+              marginTop: 40,
               position: "relative",
               zIndex: 10,
             }}
@@ -1021,20 +1227,24 @@ export default function HomeContent() {
               href="/watchlist"
               style={{
                 fontFamily: "Georgia, serif",
-                fontSize: 13,
+                fontSize: isMobile ? 15 : 17,
                 fontStyle: "italic",
-                color: "rgba(255,255,255,0.25)",
+                color: "var(--text-link)",
                 textDecoration: "none",
-                borderBottom: "1px solid rgba(255,255,255,0.1)",
-                paddingBottom: 2,
-                transition: "color 0.2s ease",
+                borderBottom: "1px solid var(--border-hover)",
+                paddingBottom: 4,
+                transition: "color 0.3s ease, border-color 0.3s ease",
               }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.color = "rgba(255,255,255,0.5)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.color = "rgba(255,255,255,0.25)")
-              }
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "var(--text-link-hover)"
+                e.currentTarget.style.borderBottomColor =
+                  "var(--border-accent)"
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "var(--text-link)"
+                e.currentTarget.style.borderBottomColor =
+                  "var(--border-hover)"
+              }}
             >
               view the full reel →
             </a>
@@ -1045,17 +1255,17 @@ export default function HomeContent() {
       {/* Section 4: Search */}
       <section
         style={{
-          padding: "80px 48px",
+          padding: isMobile ? "48px 16px" : "80px 48px",
           textAlign: "center",
-          background: "#111114",
+          background: "var(--background-raised)",
         }}
       >
         <p
           style={{
             fontFamily: "Georgia, serif",
-            fontSize: 20,
+            fontSize: isMobile ? 18 : 20,
             fontStyle: "italic",
-            color: "rgba(255,255,255,0.4)",
+            color: "var(--text-lede)",
             marginBottom: 24,
           }}
         >
@@ -1068,23 +1278,25 @@ export default function HomeContent() {
             fontFamily: "Georgia, serif",
             fontSize: 15,
             fontStyle: "italic",
-            color: "rgba(255,255,255,0.3)",
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.06)",
+            color: "var(--text-search)",
+            background: "var(--tint-ghost)",
+            border: "1px solid var(--tint-base)",
             borderRadius: 999,
-            padding: "14px 40px",
+            padding: isMobile ? "12px 20px" : "14px 40px",
             cursor: "pointer",
             transition: "all 0.3s ease",
-            minWidth: 300,
+            minWidth: isMobile ? 0 : 300,
+            width: isMobile ? "100%" : "auto",
+            maxWidth: isMobile ? 360 : "none",
             textAlign: "center",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"
-            e.currentTarget.style.color = "rgba(255,255,255,0.6)"
+            e.currentTarget.style.borderColor = "var(--border-strong)"
+            e.currentTarget.style.color = "var(--text-search-hover)"
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"
-            e.currentTarget.style.color = "rgba(255,255,255,0.3)"
+            e.currentTarget.style.borderColor = "var(--tint-base)"
+            e.currentTarget.style.color = "var(--text-search)"
           }}
         >
           Search for a film...
@@ -1094,16 +1306,16 @@ export default function HomeContent() {
       {/* Section 5: Footer */}
       <footer
         style={{
-          padding: "60px 48px 40px",
+          padding: isMobile ? "44px 16px 28px" : "60px 48px 40px",
           textAlign: "center",
-          background: "#111114",
+          background: "var(--background-raised)",
         }}
       >
         <div
           style={{
             width: 30,
             height: 1,
-            background: "rgba(255,255,255,0.05)",
+            background: "var(--tint-row)",
             margin: "0 auto 24px",
           }}
         />
@@ -1112,7 +1324,7 @@ export default function HomeContent() {
             fontFamily: "Georgia, serif",
             fontSize: 12,
             fontStyle: "italic",
-            color: "rgba(255,255,255,0.12)",
+            color: "var(--text-footer)",
           }}
         >
           First Day First Show

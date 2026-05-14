@@ -59,14 +59,14 @@ export default function RatingInput({ value, onChange }: Props) {
                 className="min-h-[44px] min-w-[44px] rounded-full border transition-all duration-200 ease-out"
                 style={{
                   borderColor: isSelected
-                    ? "rgba(255,255,255,0.22)"
-                    : "rgba(255,255,255,0.08)",
+                    ? "var(--border-focus)"
+                    : "var(--border-subtle)",
                   background: isSelected
-                    ? "rgba(255,255,255,0.1)"
-                    : "rgba(255,255,255,0.03)",
+                    ? "var(--tint-active)"
+                    : "var(--tint-inset)",
                   color: isSelected
-                    ? "rgba(255,255,255,0.85)"
-                    : "rgba(255,255,255,0.4)",
+                    ? "var(--text-body)"
+                    : "var(--text-lede)",
                 }}
                 aria-pressed={isSelected}
                 aria-label={`Rate ${n}`}
@@ -81,13 +81,13 @@ export default function RatingInput({ value, onChange }: Props) {
                   style={{
                     borderColor: hasHalf
                       ? "rgba(94, 234, 212, 0.35)"
-                      : "rgba(255,255,255,0.1)",
+                      : "var(--border-default)",
                     background: hasHalf
                       ? "rgba(94, 234, 212, 0.12)"
-                      : "rgba(255,255,255,0.04)",
+                      : "var(--tint-ghost)",
                     color: hasHalf
                       ? "rgba(94, 234, 212, 0.85)"
-                      : "rgba(255,255,255,0.45)",
+                      : "var(--text-badge)",
                   }}
                   aria-pressed={hasHalf}
                   aria-label={hasHalf ? "Use whole number" : "Add half point"}

@@ -187,7 +187,7 @@ export default function StandingOvationInput({ value, onChange }: Props) {
         className="text-center text-sm italic"
         style={{
           fontFamily: 'Georgia, "Times New Roman", serif',
-          color: "rgba(255,255,255,0.45)",
+          color: "var(--text-badge)",
           minHeight: "1.25em",
         }}
       >
@@ -203,8 +203,8 @@ export default function StandingOvationInput({ value, onChange }: Props) {
         aria-label="Applause level"
         className="flex cursor-pointer items-end justify-center gap-0.5 rounded-lg px-2 py-2"
         style={{
-          background: "linear-gradient(to top, rgba(0,0,0,0.35), rgba(255,255,255,0.03))",
-          border: "1px solid rgba(255,255,255,0.06)",
+          background: "linear-gradient(to top, var(--scrim-fade), var(--tint-inset))",
+          border: "1px solid var(--border-hairline)",
           minHeight: 56,
         }}
         onClick={onAudienceClick}
@@ -237,7 +237,7 @@ export default function StandingOvationInput({ value, onChange }: Props) {
         />
         <p
           className="mt-1 text-center text-[10px] uppercase tracking-widest"
-          style={{ color: "rgba(255,255,255,0.25)" }}
+          style={{ color: "var(--text-caption)" }}
         >
           Drag — more standing, more love
         </p>

@@ -93,9 +93,9 @@ export default function MoviePosterCard({
                     style={{
                       width: 44,
                       height: 44,
-                      background: "rgba(255,255,255,0.15)",
+                      background: "var(--glass-highlight)",
                       backdropFilter: "blur(8px)",
-                      border: "1px solid rgba(255,255,255,0.2)",
+                      border: "1px solid var(--glass-border)",
                     }}
                     aria-label="Mark as watched"
                     onClick={(e) => {
@@ -104,7 +104,7 @@ export default function MoviePosterCard({
                       setShowRatingPicker(true)
                     }}
                   >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-display)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                   </button>
@@ -118,9 +118,9 @@ export default function MoviePosterCard({
                     style={{
                       width: 44,
                       height: 44,
-                      background: "rgba(255,255,255,0.08)",
+                      background: "var(--tint-hover)",
                       backdropFilter: "blur(8px)",
-                      border: "1px solid rgba(255,255,255,0.1)",
+                      border: "1px solid var(--border-default)",
                     }}
                     aria-label="Remove from watchlist"
                     onClick={(e) => {
@@ -129,7 +129,7 @@ export default function MoviePosterCard({
                       onRemove(movie)
                     }}
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18" />
                       <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
@@ -144,7 +144,7 @@ export default function MoviePosterCard({
                 <p
                   style={{
                     fontSize: 11,
-                    color: "rgba(255,255,255,0.5)",
+                    color: "var(--text-button)",
                     fontFamily: "Georgia, serif",
                   }}
                 >

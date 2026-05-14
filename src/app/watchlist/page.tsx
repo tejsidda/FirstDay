@@ -88,7 +88,7 @@ function FilmFrame({
     >
       <div
         style={{
-          background: "#151413",
+          background: "var(--background-watchlist-panel)",
           borderRadius: 4,
           padding: "12px 8px 14px 8px",
           boxShadow: isCentered
@@ -457,7 +457,7 @@ export default function WatchlistPage() {
           width: "100vw",
           height: "100vh",
           overflow: "hidden",
-          background: "#131211",
+          background: "var(--background-watchlist)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -484,7 +484,7 @@ export default function WatchlistPage() {
         width: "100vw",
         height: "100vh",
         overflow: "hidden",
-        background: "#131211",
+        background: "var(--background-watchlist)",
       }}
     >
       <style>{`
@@ -497,7 +497,7 @@ export default function WatchlistPage() {
         style={{
           position: "fixed",
           inset: 0,
-          background: `radial-gradient(ellipse at 50% 50%, ${ambientColor} 0%, #131211 70%)`,
+          background: `radial-gradient(ellipse at 50% 50%, ${ambientColor} 0%, var(--background-watchlist) 70%)`,
           transition: "background 1.2s ease-in-out",
           zIndex: 0,
         }}

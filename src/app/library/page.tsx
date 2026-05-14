@@ -217,8 +217,15 @@ export default function LibraryPage() {
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
+    const libraryBg =
+      typeof window !== "undefined"
+        ? getComputedStyle(document.documentElement)
+            .getPropertyValue("--background-library")
+            .trim() || "#121419"
+        : "#121419"
+
     // Slight gutter between tiles (2–4px effective via GAP)
-    ctx.fillStyle = "#121419"
+    ctx.fillStyle = libraryBg
     ctx.fillRect(0, 0, W, H)
 
     const cols = Math.ceil(W / STEP)
@@ -367,7 +374,7 @@ export default function LibraryPage() {
     return (
       <main
         className="min-h-screen flex items-center justify-center"
-        style={{ background: "#121419" }}
+        style={{ background: "var(--background-library)" }}
       >
         <p
           style={{
@@ -384,7 +391,7 @@ export default function LibraryPage() {
   }
 
   return (
-    <main className="min-h-screen" style={{ background: "#121419" }}>
+    <main className="min-h-screen" style={{ background: "var(--background-library)" }}>
       <Link
         href="/home"
         style={{
@@ -418,7 +425,7 @@ export default function LibraryPage() {
           paddingTop: 100,
           paddingBottom: 40,
           textAlign: "center",
-          background: "#121419",
+          background: "var(--background-library)",
         }}
       >
         {/* Mosaic is pre-masked in canvas (destination-in); display as image — no background-clip */}
@@ -477,7 +484,7 @@ export default function LibraryPage() {
           gap: 6,
           padding: "16px 0",
           background:
-            "linear-gradient(to bottom, #121419 0%, #121419 60%, transparent 100%)",
+            "linear-gradient(to bottom, var(--background-library) 0%, var(--background-library) 60%, transparent 100%)",
           flexWrap: "wrap",
         }}
       >
@@ -607,7 +614,7 @@ export default function LibraryPage() {
         style={{
           padding: "80px 0",
           textAlign: "center",
-          background: "#121419",
+          background: "var(--background-library)",
         }}
       >
         <p

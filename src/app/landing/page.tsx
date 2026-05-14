@@ -199,7 +199,7 @@ export default function LandingPage() {
   return (
     <main
       className="relative h-screen w-screen overflow-hidden text-white"
-      style={{ fontFamily: 'Georgia, "Times New Roman", serif', background: '#0D0D0F' }}
+      style={{ fontFamily: 'Georgia, "Times New Roman", serif', background: "var(--background-base)" }}
       onClick={handleMainClick}
     >
       {/* Background: poster grid. Change opacity-[0.06] for stronger/softer posters; kenburns = slow zoom/drift (see CSS). */}
@@ -219,7 +219,7 @@ export default function LandingPage() {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(ellipse at center, rgba(212,175,55,0.02) 0%, transparent 60%), radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.75) 78%, #0D0D0F 100%)",
+              "radial-gradient(ellipse at center, rgba(212,175,55,0.02) 0%, transparent 60%), radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.75) 78%, var(--background-base) 100%)",
           }}
         />
       </div>

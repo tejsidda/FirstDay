@@ -58,7 +58,7 @@ export default function PosterRail({
             style={{ 
               fontSize: 20, 
               fontWeight: 600, 
-              color: "rgba(255,255,255,0.85)",
+              color: "var(--text-body)",
               fontFamily: "Georgia, serif",
               position: "relative",
               zIndex: 5,
@@ -70,7 +70,7 @@ export default function PosterRail({
             <p
               style={{
                 fontSize: 13, 
-                color: "rgba(255,255,255,0.35)", 
+                color: "var(--text-quote)", 
                 fontStyle: "italic",
                 marginTop: 4,
                 fontFamily: "Georgia, serif",
@@ -85,7 +85,7 @@ export default function PosterRail({
         <span
           style={{
             fontSize: 12, 
-            color: "rgba(255,255,255,0.3)",
+            color: "var(--text-search)",
             position: "relative",
             zIndex: 5,
           }}

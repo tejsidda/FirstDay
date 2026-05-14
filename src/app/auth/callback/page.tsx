@@ -28,7 +28,7 @@ export default function AuthCallbackPage() {
   return (
     <main
       className="min-h-screen flex items-center justify-center"
-      style={{ background: "#0D0D0F", color: "rgba(255,255,255,0.7)" }}
+      style={{ background: "var(--background-base)", color: "var(--text-secondary)" }}
     >
       <p style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontStyle: "italic" }}>
         Signing you in...

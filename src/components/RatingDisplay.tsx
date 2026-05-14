@@ -78,7 +78,7 @@ export default function RatingDisplay({ rating, size = "md" }: Props) {
           ...sizeStyles[size],
           fontStyle: "italic",
           fontWeight: 400,
-          color: "rgba(255,255,255,0.28)",
+          color: "var(--text-whisper)",
           fontVariantNumeric: "tabular-nums",
         }}
         aria-hidden

@@ -158,7 +158,7 @@ export default function HeroCarousel({
             position: "absolute",
             inset: 0,
             background:
-              "linear-gradient(to top, #080808 0%, rgba(8,8,8,0.6) 20%, rgba(8,8,8,0.2) 45%, rgba(8,8,8,0.05) 75%, rgba(8,8,8,0.15) 100%)",
+              "linear-gradient(to top, var(--background-sunken) 0%, rgba(8,8,8,0.6) 20%, rgba(8,8,8,0.2) 45%, rgba(8,8,8,0.05) 75%, rgba(8,8,8,0.15) 100%)",
             zIndex: 1,
           }}
         />
@@ -210,7 +210,7 @@ export default function HeroCarousel({
                   className="text-[10px] uppercase"
                   style={{
                     letterSpacing: "0.15em",
-                    color: "rgba(255,255,255,0.4)",
+                    color: "var(--text-lede)",
                   }}
                 >
                   From your watchlist
@@ -227,7 +227,7 @@ export default function HeroCarousel({
                 <p
                   className="mt-2 text-[13px]"
                   style={{
-                    color: "rgba(255,255,255,0.5)",
+                    color: "var(--text-button)",
                     maxWidth: 360,
                     lineHeight: 1.45,
                   }}
@@ -236,7 +236,7 @@ export default function HeroCarousel({
                 </p>
                 <p
                   className="mt-1.5 text-[13px]"
-                  style={{ color: "rgba(255,255,255,0.4)" }}
+                  style={{ color: "var(--text-lede)" }}
                 >
                   {movieForText.language} · {movieForText.year}
                 </p>
@@ -281,8 +281,8 @@ export default function HeroCarousel({
                     height: 4,
                     width: isActive ? 24 : 8,
                     backgroundColor: isActive
-                      ? "rgba(255,255,255,1)"
-                      : "rgba(255,255,255,0.3)",
+                      ? "var(--text-inverse)"
+                      : "var(--text-search)",
                   }}
                   aria-label={`Go to slide ${i + 1}`}
                   aria-current={isActive ? "true" : undefined}

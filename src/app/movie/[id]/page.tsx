@@ -292,7 +292,7 @@ export default function MovieDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center" style={{ background: "#0C0C10" }}>
+      <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--background-movie)" }}>
         <p style={{ color: "rgba(255,255,255,0.3)", fontStyle: "italic", fontFamily: 'Georgia, "Times New Roman", serif' }}>
           Loading...
         </p>
@@ -304,7 +304,7 @@ export default function MovieDetailPage() {
     <main
       className="min-h-screen"
       style={{
-        background: "#0C0C10",
+        background: "var(--background-movie)",
         color: "rgba(255,255,255,0.85)",
         fontFamily: 'Georgia, "Times New Roman", serif',
         scrollBehavior: "smooth",
@@ -336,7 +336,7 @@ export default function MovieDetailPage() {
           height: "100vh",
           zIndex: 1,
           marginBottom: 0,
-          background: "#0C0C10",
+          background: "var(--background-movie)",
           opacity: heroOpacity,
           transition: "none",
         }}
@@ -577,7 +577,7 @@ export default function MovieDetailPage() {
         style={{
           position: "relative",
           zIndex: 30,
-          background: "#0C0C10",
+          background: "var(--background-movie)",
           boxShadow: "0 -20px 60px rgba(12,12,16,0.9)",
           paddingTop: 80,
           borderRadius: "24px 24px 0 0",
