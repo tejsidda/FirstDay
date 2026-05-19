@@ -183,7 +183,7 @@ export default function LibraryPage() {
 
   return (
     <main
-      className="min-h-screen"
+      className="min-h-screen page-with-mobile-tabs"
       style={{ background: "var(--background-library)" }}
     >
       <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
@@ -205,7 +205,7 @@ export default function LibraryPage() {
       <header
         style={{
           position: "relative",
-          paddingTop: isMobile ? 96 : 128,
+          paddingTop: isMobile ? 80 : 128,
           paddingBottom: isMobile ? 32 : 56,
           paddingLeft: isMobile ? 20 : 56,
           paddingRight: isMobile ? 20 : 56,
@@ -249,7 +249,7 @@ export default function LibraryPage() {
         <div
           style={{
             position: "sticky",
-            top: isMobile ? 56 : 64,
+            top: isMobile ? 52 : 64,
             zIndex: 30,
             display: "flex",
             alignItems: "center",

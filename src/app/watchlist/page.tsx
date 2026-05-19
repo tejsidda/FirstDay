@@ -15,6 +15,7 @@ import StandingOvationInput from "@/components/StandingOvationInput"
 import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
 import FilterChip from "@/components/FilterChip"
+import { MOBILE_TAB_BAR_INSET } from "@/hooks/useIsMobile"
 
 const DEFAULT_AMBIENT: [number, number, number] = [45, 38, 28]
 
@@ -604,6 +605,7 @@ export default function WatchlistPage() {
 
   return (
     <main
+      className="page-with-mobile-tabs"
       style={{
         position: "relative",
         width: "100vw",
@@ -949,7 +951,9 @@ export default function WatchlistPage() {
             <div
               style={{
                 position: "absolute",
-                bottom: 50,
+                bottom: isMobile
+                  ? `calc(24px + ${MOBILE_TAB_BAR_INSET})`
+                  : 50,
                 left: "50%",
                 transform: "translateX(-50%)",
                 textAlign: "center",

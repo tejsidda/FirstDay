@@ -376,7 +376,7 @@ export default function MovieDetailPage() {
 
   return (
     <main
-      className="min-h-screen"
+      className="min-h-screen page-with-mobile-tabs"
       style={{
         background: "var(--background-movie)",
         color: "var(--text-emphasis)",

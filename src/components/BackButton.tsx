@@ -1,6 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { useIsMobile } from "@/hooks/useIsMobile"
 
 /** Returns to the previous in-app route, or home if there is no history. */
 export function navigateBack(router: ReturnType<typeof useRouter>) {
@@ -17,6 +18,7 @@ export default function BackButton({
   style?: React.CSSProperties
 }) {
   const router = useRouter()
+  const isMobile = useIsMobile()
 
   return (
     <button
@@ -26,13 +28,14 @@ export default function BackButton({
       className="t-button-sm"
       style={{
         position: "fixed",
-        top: 72,
-        left: 24,
+        top: isMobile ? 56 : 72,
+        left: isMobile ? 12 : 24,
         zIndex: 45,
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
-        padding: "8px 14px",
+        padding: isMobile ? "10px 12px" : "8px 14px",
+        minHeight: 44,
         borderRadius: 999,
         border: "1px solid var(--border-default)",
         background: "var(--tint-base)",
