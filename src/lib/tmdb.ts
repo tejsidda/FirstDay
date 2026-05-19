@@ -5,7 +5,7 @@ const TOKEN = process.env.NEXT_PUBLIC_TMDB_TOKEN
 const BASE = "https://api.themoviedb.org/3"
 const IMG = "https://image.tmdb.org/t/p"
 
-const LANG_MAP: Record<string, string> = {
+export const LANG_MAP: Record<string, string> = {
   ml: "Malayalam",
   ko: "Korean",
   te: "Telugu",
@@ -23,7 +23,41 @@ const LANG_MAP: Record<string, string> = {
   ar: "Arabic",
   th: "Thai",
   kn: "Kannada",
+  bn: "Bengali",
+  mr: "Marathi",
+  pa: "Punjabi",
+  gu: "Gujarati",
+  ur: "Urdu",
   id: "Indonesian",
+  tr: "Turkish",
+  vi: "Vietnamese",
+  nl: "Dutch",
+  sv: "Swedish",
+  no: "Norwegian",
+  da: "Danish",
+  fi: "Finnish",
+  pl: "Polish",
+  cs: "Czech",
+  he: "Hebrew",
+  fa: "Persian",
+  uk: "Ukrainian",
+}
+
+/**
+ * Returns a human-readable language name. Accepts:
+ *  - a TMDB 2-letter code ("te" → "Telugu")
+ *  - an already-mapped name ("Telugu" → "Telugu")
+ *  - anything else → returned as-is
+ * Use this on every read site so legacy rows that stored raw codes still
+ * display correctly without a DB migration.
+ */
+export function formatLanguage(value: string | null | undefined): string {
+  if (!value) return ""
+  const trimmed = value.trim()
+  if (!trimmed) return ""
+  if (trimmed.length > 3) return trimmed
+  const lower = trimmed.toLowerCase()
+  return LANG_MAP[lower] || trimmed
 }
 
 export function posterURL(path: string, size = "w500") {
@@ -41,7 +75,7 @@ function tmdbToMovie(item: any): Movie {
     year: item.release_date
       ? parseInt(item.release_date.split("-")[0])
       : 0,
-    language: LANG_MAP[item.original_language] || item.original_language,
+    language: formatLanguage(item.original_language),
     poster: item.poster_path
       ? posterURL(item.poster_path)
       : "linear-gradient(145deg, #1a1a2d 0%, #0a0a14 100%)",
