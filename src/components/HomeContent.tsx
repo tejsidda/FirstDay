@@ -6,6 +6,7 @@ import PosterRail from "@/components/PosterRail"
 import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
 import { getWatchlist, getWatched, addToWatchlist, markAsWatched, removeFromWatchlist } from "@/lib/db"
+import { PULL_REFRESH_EVENT } from "@/lib/pullToRefresh"
 import { Movie } from "@/lib/types"
 
 const AMBIENT_FALLBACK: Record<string, [number, number, number]> = {
@@ -75,10 +76,17 @@ export default function HomeContent() {
       const [w, r] = await Promise.all([getWatchlist(), getWatched()])
       setWatchlist(w)
       setWatched(r)
-      if (w.length > 0) setCurrentMovieId(w[0].id)
+      if (w.length > 0) setCurrentMovieId((prev) => prev || w[0].id)
       setLoading(false)
     }
     loadData()
+
+    const onPullRefresh = (e: Event) => {
+      e.preventDefault()
+      void loadData()
+    }
+    window.addEventListener(PULL_REFRESH_EVENT, onPullRefresh)
+    return () => window.removeEventListener(PULL_REFRESH_EVENT, onPullRefresh)
   }, [])
 
   useEffect(() => {

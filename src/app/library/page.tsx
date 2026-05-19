@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { getWatched } from "@/lib/db"
+import { PULL_REFRESH_EVENT } from "@/lib/pullToRefresh"
 import type { Movie } from "@/lib/types"
 
 export default function LibraryPage() {
@@ -24,8 +25,16 @@ export default function LibraryPage() {
     }
 
     loadWatched()
+
+    const onPullRefresh = (e: Event) => {
+      e.preventDefault()
+      void loadWatched()
+    }
+    window.addEventListener(PULL_REFRESH_EVENT, onPullRefresh)
+
     return () => {
       active = false
+      window.removeEventListener(PULL_REFRESH_EVENT, onPullRefresh)
     }
   }, [])
 
