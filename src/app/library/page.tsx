@@ -1,177 +1,100 @@
 "use client"
 
-import Link from "next/link"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { getWatched } from "@/lib/db"
+import { getWatched, addToWatchlist } from "@/lib/db"
 import type { Movie } from "@/lib/types"
+import { formatLanguage } from "@/lib/tmdb"
 import RatingDisplay from "@/components/RatingDisplay"
+import TopOverlayNav from "@/components/TopOverlayNav"
+import MovieSearch from "@/components/MovieSearch"
 
-function WallPoster({
+function LibraryPoster({
   film,
-  isFiltered,
-  isNeighbor,
   onClick,
-  onHover,
-  onLeave,
-  parallaxOffset,
 }: {
   film: Movie
-  isFiltered: boolean
-  isNeighbor: boolean
   onClick: () => void
-  onHover: () => void
-  onLeave: () => void
-  parallaxOffset: number
 }) {
   const [hovered, setHovered] = useState(false)
-
-  const scale = hovered ? 1.04 : isNeighbor ? 1.01 : 1
-  const z = hovered ? 12 : isNeighbor ? 1 : 0
-
-  let filterVal = "brightness(1)"
-  if (isFiltered) filterVal = "brightness(0.15) saturate(0)"
-  else if (isNeighbor && !hovered) filterVal = "brightness(1.05)"
-
   return (
-    <div
-      onMouseEnter={() => { setHovered(true); onHover() }}
-      style={{
-        position: "relative",
-        aspectRatio: "2/3",
-        overflow: "visible",
-        cursor: "pointer",
-      }}
-      onMouseLeave={() => { setHovered(false); onLeave() }}
+    <button
+      type="button"
       onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      aria-label={`Open ${film.title}`}
+      style={{
+        display: "block",
+        width: "100%",
+        background: "transparent",
+        border: "none",
+        padding: 0,
+        cursor: "pointer",
+        textAlign: "left",
+        transition: "transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+        transform: hovered ? "translateY(-4px)" : "translateY(0)",
+      }}
     >
       <div
         style={{
           position: "relative",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          overflow: "visible",
-          isolation: "isolate",
-          willChange: "transform, box-shadow, filter",
-          transition: "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-          transform: `scale(${scale}) translateX(${parallaxOffset}px)`,
-          zIndex: z,
-          boxShadow: hovered ? "0 12px 36px rgba(10,12,18,0.5)" : "none",
-          filter: filterVal,
+          aspectRatio: "2 / 3",
+          overflow: "hidden",
+          borderRadius: 8,
+          boxShadow: hovered
+            ? "0 14px 32px rgba(10,12,18,0.55)"
+            : "0 4px 14px rgba(10,12,18,0.35)",
+          transition: "box-shadow 0.3s ease",
         }}
       >
-        <div
+        <img
+          src={film.poster}
+          alt={film.title}
           style={{
-            position: "relative",
             width: "100%",
             height: "100%",
-            overflow: "hidden",
-          }}
-        >
-          <img
-            src={film.poster}
-            alt={film.title}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              display: "block",
-            }}
-          />
-        </div>
-
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            pointerEvents: "none",
-            background: hovered
-              ? "linear-gradient(to top, rgba(10,12,18,0.85) 0%, rgba(10,12,18,0.3) 40%, transparent 70%)"
-              : "transparent",
-            transition: "background 0.3s ease",
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "flex-end",
-            padding: 14,
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "Georgia, serif",
-              fontSize: 14,
-              fontWeight: 400,
-              fontStyle: "italic",
-              color: "rgba(255,255,255,0.9)",
-              opacity: hovered ? 1 : 0,
-              transform: hovered ? "translateY(0)" : "translateY(8px)",
-              transition: "opacity 0.3s ease, transform 0.3s ease",
-              lineHeight: 1.3,
-            }}
-          >
-            {film.title}
-          </div>
-
-          <div
-            style={{
-              fontFamily: "-apple-system, sans-serif",
-              fontSize: 10,
-              color: "rgba(255,255,255,0.4)",
-              opacity: hovered ? 1 : 0,
-              transform: hovered ? "translateY(0)" : "translateY(8px)",
-              transition: "opacity 0.3s ease 0.05s, transform 0.3s ease 0.05s",
-              marginTop: 4,
-            }}
-          >
-            {film.language} · {film.year}
-          </div>
-
-          {film.rating != null && (
-            <div
-              style={{
-                opacity: hovered ? 1 : 0,
-                transform: hovered ? "translateY(0)" : "translateY(8px)",
-                transition: "opacity 0.3s ease 0.1s, transform 0.3s ease 0.1s",
-                marginTop: 4,
-              }}
-            >
-              <RatingDisplay rating={film.rating} size="sm" />
-            </div>
-          )}
-
-          {film.reviewHeadline && (
-            <div
-              style={{
-                fontFamily: "Georgia, serif",
-                fontSize: 9,
-                fontStyle: "italic",
-                color: "rgba(255,255,255,0.3)",
-                opacity: hovered ? 1 : 0,
-                transform: hovered ? "translateY(0)" : "translateY(8px)",
-                transition: "opacity 0.3s ease 0.15s, transform 0.3s ease 0.15s",
-                marginTop: 6,
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-              }}
-            >
-              {film.reviewHeadline}
-            </div>
-          )}
-        </div>
-
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            border: hovered
-              ? "1px solid rgba(255,255,255,0.15)"
-              : "1px solid transparent",
-            transition: "border-color 0.3s ease",
-            pointerEvents: "none",
+            objectFit: "cover",
+            display: "block",
           }}
         />
+        {film.rating != null && (
+          <div
+            style={{
+              position: "absolute",
+              top: 8,
+              left: 8,
+              background: "var(--panel-overlay)",
+              borderRadius: 6,
+              padding: "4px 8px",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            <RatingDisplay rating={film.rating} size="sm" />
+          </div>
+        )}
       </div>
-    </div>
+      <div
+        className="t-title-sm"
+        style={{
+          marginTop: 10,
+          color: "var(--text-emphasis)",
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+        }}
+      >
+        {film.title}
+      </div>
+      <div
+        className="t-caption"
+        style={{ marginTop: 2, color: "var(--text-search)" }}
+      >
+        {formatLanguage(film.language)}
+        {film.year != null ? ` · ${film.year}` : ""}
+      </div>
+    </button>
   )
 }
 
@@ -180,13 +103,17 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(true)
   const [selectedLanguage, setSelectedLanguage] = useState("All")
   const [searchQuery, setSearchQuery] = useState("")
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-  const [tilt, setTilt] = useState({ x: 0, y: 0 })
-  const [columns, setColumns] = useState(10)
-  const [scrollY, setScrollY] = useState(0)
-  const [collageUrl, setCollageUrl] = useState<string | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const router = useRouter()
-  const gridRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 768px)")
+    const update = () => setIsMobile(media.matches)
+    update()
+    media.addEventListener("change", update)
+    return () => media.removeEventListener("change", update)
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -198,175 +125,45 @@ export default function LibraryPage() {
       setLoading(false)
     }
     load()
-    return () => { active = false }
+    return () => {
+      active = false
+    }
   }, [])
 
-  // Dense poster mosaic masked to digit shape via canvas destination-in (no tainted canvas — proxy same-origin)
-  useEffect(() => {
-    if (watched.length === 0) return
-
-    const count = watched.length
-    const CELL = 52
-    const GAP = 3
-    const STEP = CELL + GAP
-    const W = 1800
-    const H = 640
-    const canvas = document.createElement("canvas")
-    canvas.width = W
-    canvas.height = H
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-
-    const libraryBg =
-      typeof window !== "undefined"
-        ? getComputedStyle(document.documentElement)
-            .getPropertyValue("--background-library")
-            .trim() || "#121419"
-        : "#121419"
-
-    // Slight gutter between tiles (2–4px effective via GAP)
-    ctx.fillStyle = libraryBg
-    ctx.fillRect(0, 0, W, H)
-
-    const cols = Math.ceil(W / STEP)
-    const rows = Math.ceil(H / STEP)
-
-    // Same-origin proxy so drawImage doesn't taint canvas (toDataURL works)
-    const proxied = (posterUrl: string) =>
-      `/api/poster-proxy?url=${encodeURIComponent(posterUrl)}`
-
-    const loadImage = (src: string): Promise<HTMLImageElement | null> =>
-      new Promise((resolve) => {
-        const img = new Image()
-        img.onload = () => resolve(img)
-        img.onerror = () => resolve(null)
-        img.src = proxied(src)
-      })
-
-    let cancelled = false
-    ;(async () => {
-      const loaded = await Promise.all(watched.map((f) => loadImage(f.poster)))
-      if (cancelled) return
-      const images = loaded.filter((img): img is HTMLImageElement => img != null)
-      if (images.length === 0) return
-
-      // Dense grid: every cell filled, cycle posters
-      let idx = 0
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-          const x = col * STEP
-          const y = row * STEP
-          const img = images[idx % images.length]
-          idx++
-          const iw = img.naturalWidth || img.width
-          const ih = img.naturalHeight || img.height
-          ctx.save()
-          ctx.beginPath()
-          ctx.rect(x, y, CELL, CELL)
-          ctx.clip()
-          const scale = Math.max(CELL / iw, CELL / ih)
-          const dw = iw * scale
-          const dh = ih * scale
-          ctx.drawImage(
-            img,
-            0,
-            0,
-            iw,
-            ih,
-            x + (CELL - dw) / 2,
-            y + (CELL - dh) / 2,
-            dw,
-            dh
-          )
-          ctx.restore()
-        }
+  const handleAdd = async (movie: Movie) => {
+    if (watched.some((m) => m.id === movie.id)) {
+      return {
+        ok: false,
+        message: "Already in your library — pick another one?",
       }
-
-      // Mask: keep poster pixels only where text is (destination-in = dest kept where source opaque)
-      ctx.save()
-      ctx.globalCompositeOperation = "destination-in"
-      ctx.fillStyle = "#fff"
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      ctx.font = `italic 900 ${Math.min(H * 0.92, 520)}px Georgia, "Times New Roman", serif`
-      ctx.fillText(String(count), W / 2, H / 2 + H * 0.02)
-      ctx.restore()
-
-      if (!cancelled) {
-        // PNG preserves transparency outside glyphs so page bg shows through
-        setCollageUrl(canvas.toDataURL("image/png"))
-      }
-    })()
-
-    return () => {
-      cancelled = true
     }
-  }, [watched])
-
-  // Column count for neighbor ripple calculation
-  useEffect(() => {
-    const calculateColumns = () => {
-      if (!gridRef.current) return
-      const width = gridRef.current.offsetWidth
-      setColumns(Math.max(1, Math.floor(width / 140)))
-    }
-    calculateColumns()
-    window.addEventListener("resize", calculateColumns)
-    return () => window.removeEventListener("resize", calculateColumns)
-  }, [])
-
-  // 3D tilt — tracks global mouse relative to viewport center
-  useEffect(() => {
-    let rafId: number | null = null
-    const handleGlobalMouse = (e: MouseEvent) => {
-      if (rafId != null) return
-      rafId = requestAnimationFrame(() => {
-        const centerX = window.innerWidth / 2
-        const centerY = window.innerHeight / 2
-        // Subtle tilt only — was ±3deg, now ~±0.9deg max
-        setTilt({
-          x: ((e.clientY - centerY) / centerY) * -0.9,
-          y: ((e.clientX - centerX) / centerX) * 0.9,
-        })
-        rafId = null
-      })
-    }
-    window.addEventListener("mousemove", handleGlobalMouse)
-    return () => {
-      window.removeEventListener("mousemove", handleGlobalMouse)
-      if (rafId != null) cancelAnimationFrame(rafId)
-    }
-  }, [])
-
-  // Scroll parallax
-  useEffect(() => {
-    let rafId: number | null = null
-    const handleScroll = () => {
-      if (rafId != null) return
-      rafId = requestAnimationFrame(() => {
-        setScrollY(window.scrollY)
-        rafId = null
-      })
-    }
-    window.addEventListener("scroll", handleScroll, { passive: true })
-    return () => {
-      window.removeEventListener("scroll", handleScroll)
-      if (rafId != null) cancelAnimationFrame(rafId)
-    }
-  }, [])
+    const success = await addToWatchlist(movie)
+    if (success) return { ok: true }
+    return { ok: false, message: "Already on your watchlist." }
+  }
 
   const languages = [
     "All",
-    ...Array.from(new Set(watched.map((m) => m.language).filter(Boolean))).sort(),
+    ...Array.from(
+      new Set(
+        watched
+          .map((m) => formatLanguage(m.language))
+          .filter((l): l is string => Boolean(l)),
+      ),
+    ).sort(),
   ]
+
   const normalizedQuery = searchQuery.trim().toLowerCase()
   const filteredWatched = watched.filter((film) => {
+    const filmLang = formatLanguage(film.language)
     const languageOk =
-      selectedLanguage === "All" || film.language === selectedLanguage
+      selectedLanguage === "All" || filmLang === selectedLanguage
     if (!normalizedQuery) return languageOk
     return (
       languageOk &&
-      `${film.title} ${film.language} ${film.year}`.toLowerCase().includes(normalizedQuery)
+      `${film.title} ${filmLang} ${film.year}`
+        .toLowerCase()
+        .includes(normalizedQuery)
     )
   })
 
@@ -376,258 +173,270 @@ export default function LibraryPage() {
         className="min-h-screen flex items-center justify-center"
         style={{ background: "var(--background-library)" }}
       >
-        <p
-          style={{
-            fontFamily: "Georgia, serif",
-            fontSize: 16,
-            fontStyle: "italic",
-            color: "rgba(255,255,255,0.3)",
-          }}
-        >
-          Loading your wall...
+        <p className="t-meta" style={{ color: "var(--text-search)" }}>
+          Loading your library…
         </p>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen" style={{ background: "var(--background-library)" }}>
-      <Link
-        href="/home"
-        style={{
-          position: "fixed",
-          top: 20,
-          left: 24,
-          zIndex: 50,
-          fontFamily: "-apple-system, sans-serif",
-          fontSize: 13,
-          fontWeight: 600,
-          color: "rgba(255,255,255,0.4)",
-          textDecoration: "none",
-          letterSpacing: "0.1em",
-        }}
-      >
-        FDFS
-      </Link>
+    <main
+      className="min-h-screen"
+      style={{ background: "var(--background-library)" }}
+    >
+      <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
 
-      {/* Cool-toned ambient gradient */}
-      <div style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'radial-gradient(ellipse at 50% 30%, rgba(80,100,180,0.03) 0%, transparent 60%)',
-        pointerEvents: 'none',
-        zIndex: 0,
-      }} />
-
-
+      {/* Ambient gradient — scoped to top of page */}
       <div
         style={{
-          paddingTop: 100,
-          paddingBottom: 40,
-          textAlign: "center",
-          background: "var(--background-library)",
-        }}
-      >
-        {/* Mosaic is pre-masked in canvas (destination-in); display as image — no background-clip */}
-        {collageUrl ? (
-          <img
-            src={collageUrl}
-            alt={`${watched.length} films`}
-            style={{
-              display: "block",
-              margin: "0 auto",
-              maxWidth: "min(95vw, 900px)",
-              width: "auto",
-              height: "auto",
-              imageRendering: "auto",
-              filter: "saturate(1.1) contrast(1.06)",
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              display: "inline-block",
-              fontSize: "clamp(160px, 28vw, 300px)",
-              fontWeight: 900,
-              fontFamily: 'Georgia, "Times New Roman", serif',
-              fontStyle: "italic",
-              lineHeight: 0.85,
-              color: "rgba(255,255,255,0.5)",
-            }}
-          >
-            {watched.length}
-          </div>
-        )}
-
-        <p
-          style={{
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: 16,
-            fontWeight: 400,
-            fontStyle: "italic",
-            color: "rgba(255,255,255,0.35)",
-            marginTop: 16,
-            letterSpacing: "0.02em",
-          }}
-        >
-          films. Every one meant something.
-        </p>
-      </div>
-
-      <div
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 40,
-          display: "flex",
-          justifyContent: "center",
-          gap: 6,
-          padding: "16px 0",
+          position: "absolute",
+          inset: "0 0 auto 0",
+          height: 700,
           background:
-            "linear-gradient(to bottom, var(--background-library) 0%, var(--background-library) 60%, transparent 100%)",
-          flexWrap: "wrap",
+            "radial-gradient(ellipse at 50% 20%, rgba(80,100,180,0.06) 0%, transparent 65%)",
+          pointerEvents: "none",
+          zIndex: 0,
         }}
-      >
-        <input
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search your library..."
-          style={{
-            minWidth: 220,
-            padding: "8px 12px",
-            borderRadius: 999,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(255,255,255,0.05)",
-            color: "rgba(255,255,255,0.85)",
-            fontFamily: "Georgia, serif",
-            fontSize: 13,
-            fontStyle: "italic",
-            outline: "none",
-          }}
-        />
-        {languages.map((lang) => (
-          <button
-            key={lang}
-            onClick={() => setSelectedLanguage(prev => prev === lang ? "All" : lang)}
-            style={{
-              fontFamily: "-apple-system, sans-serif",
-              fontSize: 10,
-              fontWeight: 500,
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              color:
-                selectedLanguage === lang
-                  ? "rgba(255,255,255,0.85)"
-                  : "rgba(255,255,255,0.3)",
-              padding: "6px 14px",
-              border:
-                selectedLanguage === lang
-                  ? "1px solid rgba(255,255,255,0.15)"
-                  : "1px solid transparent",
-              borderRadius: 999,
-              background:
-                selectedLanguage === lang
-                  ? "rgba(255,255,255,0.06)"
-                  : "transparent",
-              cursor: "pointer",
-              transition: "all 0.35s ease-out",
-            }}
-          >
-            {lang}
-          </button>
-        ))}
-      </div>
+      />
 
-      {/* Light depth — high perspective + small rotate = barely there 3D */}
-      <div
+      {/* Masthead */}
+      <header
         style={{
-          perspective: "3200px",
-          perspectiveOrigin: "50% 45%",
+          position: "relative",
+          paddingTop: isMobile ? 96 : 128,
+          paddingBottom: isMobile ? 32 : 56,
+          paddingLeft: isMobile ? 20 : 56,
+          paddingRight: isMobile ? 20 : 56,
+          textAlign: "center",
         }}
       >
+        {watched.length === 0 ? (
+          <EmptyState onSearch={() => setSearchOpen(true)} />
+        ) : (
+          <>
+            <div
+              className="t-label"
+              style={{ color: "var(--text-label)", marginBottom: 16 }}
+            >
+              Your library
+            </div>
+            <div
+              className="t-display-num t-tabular"
+              style={{ color: "var(--text-strong)" }}
+            >
+              {watched.length}
+            </div>
+            <p
+              className="t-body"
+              style={{
+                margin: 0,
+                marginTop: 16,
+                color: "var(--text-dim)",
+                fontStyle: "italic",
+              }}
+            >
+              {watched.length === 1 ? "film" : "films"}. Every one meant
+              something.
+            </p>
+          </>
+        )}
+      </header>
+
+      {/* Filter bar */}
+      {watched.length > 0 && (
         <div
           style={{
-            position: "relative",
-            transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-            transition: "transform 0.35s ease-out",
-            transformStyle: "preserve-3d",
+            position: "sticky",
+            top: isMobile ? 56 : 64,
+            zIndex: 30,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            padding: isMobile ? "14px 16px" : "16px 56px",
+            background: "var(--background-library)",
+            borderBottom: "1px solid var(--border-default)",
+            flexWrap: "wrap",
           }}
         >
-          <div
-            ref={gridRef}
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search your library"
+            aria-label="Search your library"
+            className="t-label-value"
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-              gap: 0,
-              width: "100%",
-              transformStyle: "preserve-3d",
+              flex: isMobile ? "1 1 100%" : "0 0 280px",
+              padding: "10px 14px",
+              borderRadius: 999,
+              border: "1px solid var(--border-default)",
+              background: "var(--tint-base)",
+              color: "var(--text-emphasis)",
+              outline: "none",
+              transition: "border-color 0.2s ease, background 0.2s ease",
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = "var(--border-strong)"
+              e.currentTarget.style.background = "var(--tint-hover)"
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = "var(--border-default)"
+              e.currentTarget.style.background = "var(--tint-base)"
+            }}
+          />
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              flexWrap: "wrap",
+              justifyContent: "center",
             }}
           >
-            {filteredWatched.map((film, i) => {
-              const row = Math.floor(i / columns)
-              const parallaxOffset =
-                row % 2 === 0 ? scrollY * 0.006 : scrollY * -0.006
-
-              const isNeighbor =
-                hoveredIndex !== null &&
-                hoveredIndex !== i &&
-                (i === hoveredIndex - 1 ||
-                  i === hoveredIndex + 1 ||
-                  i === hoveredIndex - columns ||
-                  i === hoveredIndex + columns)
-
+            {languages.map((lang) => {
+              const active = selectedLanguage === lang
               return (
-                <WallPoster
-                  key={film.id}
-                  film={film}
-                  isFiltered={
-                    selectedLanguage !== "All" &&
-                    film.language !== selectedLanguage
+                <button
+                  key={lang}
+                  type="button"
+                  onClick={() =>
+                    setSelectedLanguage((prev) =>
+                      prev === lang ? "All" : lang,
+                    )
                   }
-                  isNeighbor={isNeighbor}
-                  onHover={() => setHoveredIndex(i)}
-                  onLeave={() => setHoveredIndex(null)}
-                  onClick={() => router.push(`/movie/${film.id}`)}
-                  parallaxOffset={parallaxOffset}
-                />
+                  className="t-button-sm"
+                  style={{
+                    color: active
+                      ? "var(--text-inverse)"
+                      : "var(--text-emphasis)",
+                    padding: "8px 16px",
+                    border: active
+                      ? "1px solid var(--text-strong)"
+                      : "1px solid var(--border-default)",
+                    borderRadius: 999,
+                    background: active
+                      ? "var(--text-strong)"
+                      : "var(--tint-base)",
+                    cursor: "pointer",
+                    transition:
+                      "color 0.2s ease, background 0.2s ease, border-color 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!active) {
+                      e.currentTarget.style.borderColor = "var(--border-strong)"
+                      e.currentTarget.style.background = "var(--tint-hover)"
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!active) {
+                      e.currentTarget.style.borderColor =
+                        "var(--border-default)"
+                      e.currentTarget.style.background = "var(--tint-base)"
+                    }
+                  }}
+                >
+                  {lang}
+                </button>
               )
             })}
           </div>
-          {filteredWatched.length === 0 && (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "46px 20px 20px",
-                color: "rgba(255,255,255,0.35)",
-                fontFamily: "Georgia, serif",
-                fontStyle: "italic",
-                fontSize: 15,
-              }}
-            >
-              No films match that search yet.
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
-      <div
-        style={{
-          padding: "80px 0",
-          textAlign: "center",
-          background: "var(--background-library)",
-        }}
-      >
-        <p
+      {/* Grid */}
+      {watched.length > 0 && (
+        <section
           style={{
-            fontFamily: "Georgia, serif",
-            fontSize: 13,
-            fontStyle: "italic",
-            color: "rgba(255,255,255,0.12)",
+            position: "relative",
+            padding: isMobile ? "32px 20px 80px" : "48px 56px 120px",
+            maxWidth: 1400,
+            margin: "0 auto",
           }}
         >
-          The reel keeps rolling.
-        </p>
-      </div>
+          {filteredWatched.length === 0 ? (
+            <div
+              className="t-meta"
+              style={{
+                textAlign: "center",
+                padding: "60px 20px",
+                color: "var(--text-dim)",
+              }}
+            >
+              No films match that search.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "repeat(2, minmax(0, 1fr))"
+                  : "repeat(auto-fill, minmax(180px, 1fr))",
+                gap: isMobile ? 20 : 28,
+              }}
+            >
+              {filteredWatched.map((film) => (
+                <LibraryPoster
+                  key={film.id}
+                  film={film}
+                  onClick={() => router.push(`/movie/${film.id}`)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {searchOpen && (
+        <MovieSearch
+          onAdd={handleAdd}
+          onClose={() => setSearchOpen(false)}
+        />
+      )}
     </main>
+  )
+}
+
+function EmptyState({ onSearch }: { onSearch: () => void }) {
+  return (
+    <div style={{ maxWidth: 520, margin: "0 auto" }}>
+      <div
+        className="t-label"
+        style={{ color: "var(--text-label)", marginBottom: 20 }}
+      >
+        Your library
+      </div>
+      <h1
+        className="t-display"
+        style={{ margin: 0, color: "var(--text-strong)" }}
+      >
+        No films yet.
+      </h1>
+      <p
+        className="t-body"
+        style={{
+          marginTop: 16,
+          marginBottom: 28,
+          color: "var(--text-dim)",
+        }}
+      >
+        Mark something as watched and it will live here, along with your
+        rating and review.
+      </p>
+      <button
+        type="button"
+        onClick={onSearch}
+        className="t-button"
+        style={{
+          color: "var(--text-inverse)",
+          background: "var(--text-strong)",
+          border: "none",
+          borderRadius: 999,
+          padding: "12px 28px",
+          cursor: "pointer",
+        }}
+      >
+        Find a film
+      </button>
+    </div>
   )
 }

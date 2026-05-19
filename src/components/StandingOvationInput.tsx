@@ -170,12 +170,10 @@ export default function StandingOvationInput({ value, onChange }: Props) {
     <div className="flex w-full max-w-md flex-col items-center gap-3 px-2">
       {/* Big live number */}
       <div
-        className="tabular-nums"
+        className="t-heading t-tabular"
         style={{
           fontSize: "2.75rem",
           lineHeight: 1.1,
-          fontStyle: "italic",
-          fontFamily: 'Georgia, "Times New Roman", serif',
           ...hero,
         }}
       >
@@ -184,9 +182,8 @@ export default function StandingOvationInput({ value, onChange }: Props) {
 
       {/* Mood line */}
       <p
-        className="text-center text-sm italic"
+        className="t-title text-center"
         style={{
-          fontFamily: 'Georgia, "Times New Roman", serif',
           color: "var(--text-badge)",
           minHeight: "1.25em",
         }}
@@ -236,7 +233,7 @@ export default function StandingOvationInput({ value, onChange }: Props) {
           aria-label="Drag to set rating"
         />
         <p
-          className="mt-1 text-center text-[10px] uppercase tracking-widest"
+          className="t-label mt-1 text-center"
           style={{ color: "var(--text-caption)" }}
         >
           Drag — more standing, more love

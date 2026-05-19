@@ -199,7 +199,7 @@ export default function LandingPage() {
   return (
     <main
       className="relative h-screen w-screen overflow-hidden text-white"
-      style={{ fontFamily: 'Georgia, "Times New Roman", serif', background: "var(--background-base)" }}
+      style={{ fontFamily: "var(--font-display)", background: "var(--background-base)" }}
       onClick={handleMainClick}
     >
       {/* Background: poster grid. Change opacity-[0.06] for stronger/softer posters; kenburns = slow zoom/drift (see CSS). */}
@@ -467,7 +467,8 @@ export default function LandingPage() {
           font-weight: 600;
           line-height: 1.2;
           letter-spacing: -0.02em;
-          font-family: Georgia, "Times New Roman", serif;
+          font-family: var(--font-display);
+          font-style: italic;
           color: rgba(212, 175, 55, 0.75);
           font-size: 32px;
         }
@@ -495,7 +496,7 @@ export default function LandingPage() {
 
         .fdfs-input {
           transition: border-color 0.3s ease, box-shadow 0.3s ease;
-          font-family: Georgia, "Times New Roman", serif;
+          font-family: var(--font-body);
         }
 
         .fdfs-input::placeholder {

@@ -135,6 +135,23 @@ export default function TopOverlayNav({
             </svg>
             <span>Watchlist</span>
           </Link>
+          <Link href="/wrapped" className={`${itemClass("/wrapped")} inline-flex items-center gap-2`}>
+            <svg
+              width={isMobile ? 20 : 22}
+              height={isMobile ? 20 : 22}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0 opacity-90"
+              aria-hidden
+            >
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+            <span>Wrapped</span>
+          </Link>
         </div>
       </div>
     </div>

@@ -55,11 +55,9 @@ export default function PosterRail({
       <div className="mb-4 flex items-start justify-between gap-6">
         <div>
           <h2
-            style={{ 
-              fontSize: 20, 
-              fontWeight: 600, 
+            className="t-sub"
+            style={{
               color: "var(--text-body)",
-              fontFamily: "Georgia, serif",
               position: "relative",
               zIndex: 5,
             }}
@@ -68,12 +66,10 @@ export default function PosterRail({
           </h2>
           {subtitle && (
             <p
+              className="t-meta"
               style={{
-                fontSize: 13, 
-                color: "var(--text-quote)", 
-                fontStyle: "italic",
+                color: "var(--text-quote)",
                 marginTop: 4,
-                fontFamily: "Georgia, serif",
                 position: "relative",
                 zIndex: 5,
               }}
@@ -83,8 +79,8 @@ export default function PosterRail({
           )}
         </div>
         <span
+          className="t-caption"
           style={{
-            fontSize: 12, 
             color: "var(--text-search)",
             position: "relative",
             zIndex: 5,

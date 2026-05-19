@@ -99,10 +99,7 @@ export default function RatingInput({ value, onChange }: Props) {
           )
         })}
       </div>
-      <p
-        className="text-sm italic text-white/50 tabular-nums"
-        style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-      >
+      <p className="t-meta t-tabular text-white/50">
         {current != null ? `Currently: ${displayText}` : "Select a rating"}
       </p>
     </div>

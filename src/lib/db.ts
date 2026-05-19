@@ -47,14 +47,34 @@ export async function getWatchlist(): Promise<Movie[]> {
   return (data || []).map(rowToMovie)
 }
 
-export async function addToWatchlist(movie: Movie): Promise<boolean> {
-  // Check for duplicates
+export type AddToWatchlistResult =
+  | { ok: true }
+  | { ok: false; reason: "already_watchlisted" | "already_watched" | "error" }
+
+/**
+ * Adds to watchlist. Blocks if the film is already in `watched` (use the movie page
+ * to rewatch + re-rate instead) or already on the watchlist.
+ */
+export async function addToWatchlistDetailed(
+  movie: Movie,
+): Promise<AddToWatchlistResult> {
+  const { data: alreadyWatched } = await supabase
+    .from("watched")
+    .select("id")
+    .eq("tmdb_id", movie.id)
+    .limit(1)
+  if (alreadyWatched && alreadyWatched.length > 0) {
+    return { ok: false, reason: "already_watched" }
+  }
+
   const { data: existing } = await supabase
     .from("watchlist")
     .select("id")
     .eq("tmdb_id", movie.id)
     .limit(1)
-  if (existing && existing.length > 0) return false
+  if (existing && existing.length > 0) {
+    return { ok: false, reason: "already_watchlisted" }
+  }
 
   const { error } = await supabase.from("watchlist").insert({
     tmdb_id: movie.id,
@@ -66,9 +86,15 @@ export async function addToWatchlist(movie: Movie): Promise<boolean> {
   })
   if (error) {
     console.error("Error adding to watchlist:", error.message)
-    return false
+    return { ok: false, reason: "error" }
   }
-  return true
+  return { ok: true }
+}
+
+/** Legacy boolean API. Prefer `addToWatchlistDetailed`. */
+export async function addToWatchlist(movie: Movie): Promise<boolean> {
+  const r = await addToWatchlistDetailed(movie)
+  return r.ok
 }
 
 export async function removeFromWatchlist(tmdbId: string): Promise<boolean> {
@@ -126,8 +152,9 @@ export async function markAsWatched(
       console.error("Error updating watched movie:", updateError.message)
       return false
     }
-    // Remove from watchlist (if it was there)
-    await supabase.from("watchlist").delete().eq("tmdb_id", movie.id)
+    if (!(await deleteFromWatchlistVerified(movie.id))) {
+      return false
+    }
     return true
   }
 
@@ -147,8 +174,43 @@ export async function markAsWatched(
     console.error("Error marking as watched:", insertError.message)
     return false
   }
-  // Remove from watchlist (if it was there)
-  await supabase.from("watchlist").delete().eq("tmdb_id", movie.id)
+  if (!(await deleteFromWatchlistVerified(movie.id))) {
+    return false
+  }
+  return true
+}
+
+/**
+ * Deletes watchlist row(s) for tmdbId and verifies the row is actually gone.
+ * Returns false only if a row still exists after the delete (silent RLS
+ * no-ops, trigger blocks, or actual DB errors). Returns true if the row is
+ * gone — including the case where it was never there in the first place.
+ */
+async function deleteFromWatchlistVerified(tmdbId: string): Promise<boolean> {
+  const { error: delError } = await supabase
+    .from("watchlist")
+    .delete()
+    .eq("tmdb_id", tmdbId)
+  if (delError) {
+    console.error("Watchlist delete failed:", delError.message)
+    return false
+  }
+  const { data: stillThere, error: verifyError } = await supabase
+    .from("watchlist")
+    .select("id")
+    .eq("tmdb_id", tmdbId)
+    .limit(1)
+  if (verifyError) {
+    console.error("Watchlist verify failed:", verifyError.message)
+    return false
+  }
+  if (stillThere && stillThere.length > 0) {
+    console.error(
+      "Watchlist row persists after delete (RLS or trigger?):",
+      tmdbId,
+    )
+    return false
+  }
   return true
 }
 

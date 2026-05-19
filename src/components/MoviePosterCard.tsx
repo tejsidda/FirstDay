@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useState } from "react"
 import { Movie } from "@/lib/types"
+import { formatLanguage } from "@/lib/tmdb"
 import RatingDisplay from "@/components/RatingDisplay"
 import StandingOvationInput from "@/components/StandingOvationInput"
 
@@ -12,12 +13,10 @@ const sizeClasses = {
   large: {
     card: "min-w-[160px] w-[160px]",
     poster: "aspect-[2/3] rounded-[12px]",
-    title: "text-[14px]",
   },
   small: {
     card: "min-w-[140px] w-[140px]",
     poster: "aspect-[2/3] rounded-[12px]",
-    title: "text-[13px]",
   },
 }
 
@@ -141,13 +140,7 @@ export default function MoviePosterCard({
                 className="relative z-10 flex max-w-[min(100%,360px)] flex-col items-center gap-2 px-2"
                 onClick={(e) => e.stopPropagation()}
               >
-                <p
-                  style={{
-                    fontSize: 11,
-                    color: "var(--text-button)",
-                    fontFamily: "Georgia, serif",
-                  }}
-                >
+                <p className="t-label" style={{ color: "var(--text-button)" }}>
                   Standing ovation?
                 </p>
                 <StandingOvationInput
@@ -181,13 +174,11 @@ export default function MoviePosterCard({
         )}
       </div>
 
-      <h3
-        className={`${s.title} mt-2.5 line-clamp-1 font-medium text-white/85`}
-      >
+      <h3 className="t-title-sm mt-2.5 line-clamp-1 text-white/85">
         {movie.title}
       </h3>
-      <p className="mt-1 text-[12px] text-white/35">
-        {movie.language}
+      <p className="t-caption mt-1 text-white/35">
+        {formatLanguage(movie.language)}
         {movie.year != null ? ` · ${movie.year}` : ""}
       </p>
     </Link>

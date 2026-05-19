@@ -9,6 +9,7 @@ import {
   removeFromWatchlist,
 } from "@/lib/db"
 import type { Movie } from "@/lib/types"
+import { formatLanguage } from "@/lib/tmdb"
 import StandingOvationInput from "@/components/StandingOvationInput"
 
 const DEFAULT_AMBIENT: [number, number, number] = [45, 38, 28]
@@ -122,32 +123,28 @@ function FilmFrame({
           }}
         >
           <div
+            className={isCentered ? "t-title" : "t-caption"}
             style={{
-              fontFamily: "Georgia, serif",
-              fontSize: isCentered ? 15 : 11,
-              fontWeight: 400,
               fontStyle: "italic",
+              fontFamily: "var(--font-display)",
               color: isCentered
                 ? "rgba(255,255,255,0.85)"
                 : "rgba(255,255,255,0.3)",
               transition: "all 0.5s ease",
-              lineHeight: 1.3,
             }}
           >
             {film.title}
           </div>
           {isCentered && (
             <div
+              className="t-caption"
               style={{
-                fontFamily: "-apple-system, sans-serif",
-                fontSize: 11,
                 color: "rgba(255,255,255,0.45)",
                 marginTop: 6,
-                letterSpacing: "0.04em",
                 transition: "opacity 0.3s ease",
               }}
             >
-              {film.language}
+              {formatLanguage(film.language)}
               {film.year != null ? ` · ${film.year}` : ""}
             </div>
           )}
@@ -201,6 +198,7 @@ export default function WatchlistPage() {
   const [alreadyWatchedEarlier, setAlreadyWatchedEarlier] = useState(false)
   const [watchedDate, setWatchedDate] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const router = useRouter()
   const stripRef = useRef<HTMLDivElement>(null)
   const ambientCacheRef = useRef<Record<string, [number, number, number]>>({})
@@ -314,37 +312,36 @@ export default function WatchlistPage() {
   ) => {
     if (actionLoading) return
     setActionLoading(true)
+    setActionError(null)
     try {
       const success = await markAsWatched(film, rating, {
         reviewBody,
         watchedAt,
       })
-      if (success) {
-        const updated = watchlist.filter((m) => m.id !== film.id)
-        if (updated.length === 0) {
-          setWatchlist([])
-          setCenteredIndex(0)
-          setShowRating(false)
-          setShowReviewStep(false)
-          setPendingRating(null)
-          setReviewText("")
-          setAlreadyWatchedEarlier(false)
-          setWatchedDate("")
-          return
-        }
-        setWatchlist(updated)
-        const nextIndex =
-          centeredIndex >= updated.length && updated.length > 0
-            ? updated.length - 1
-            : Math.min(centeredIndex, Math.max(0, updated.length - 1))
-        syncStripToIndex(nextIndex, updated.length)
-        setShowRating(false)
-        setShowReviewStep(false)
-        setPendingRating(null)
-        setReviewText("")
-        setAlreadyWatchedEarlier(false)
-        setWatchedDate("")
+      if (!success) {
+        setActionError(
+          "We saved your rating but couldn't remove this from the watchlist. Try again, or check your library — the watched entry is there.",
+        )
+        return
       }
+      // Refetch from DB rather than trusting optimistic state
+      const fresh = await getWatchlist()
+      setWatchlist(fresh)
+      if (fresh.length === 0) {
+        setCenteredIndex(0)
+      } else {
+        const nextIndex =
+          centeredIndex >= fresh.length
+            ? fresh.length - 1
+            : Math.min(centeredIndex, fresh.length - 1)
+        syncStripToIndex(nextIndex, fresh.length)
+      }
+      setShowRating(false)
+      setShowReviewStep(false)
+      setPendingRating(null)
+      setReviewText("")
+      setAlreadyWatchedEarlier(false)
+      setWatchedDate("")
     } finally {
       setActionLoading(false)
     }
@@ -463,14 +460,7 @@ export default function WatchlistPage() {
           justifyContent: "center",
         }}
       >
-        <p
-          style={{
-            fontFamily: "Georgia, serif",
-            fontSize: 16,
-            fontStyle: "italic",
-            color: "rgba(255,255,255,0.25)",
-          }}
-        >
+        <p className="t-meta" style={{ color: "rgba(255,255,255,0.25)" }}>
           Threading the reel...
         </p>
       </main>
@@ -506,17 +496,14 @@ export default function WatchlistPage() {
       {/* FDFS logo */}
       <Link
         href="/home"
+        className="t-button"
         style={{
           position: "absolute",
           top: 20,
           left: 24,
           zIndex: 50,
-          fontFamily: "-apple-system, sans-serif",
-          fontSize: 13,
-          fontWeight: 600,
           color: "rgba(255,255,255,0.4)",
           textDecoration: "none",
-          letterSpacing: "0.1em",
         }}
       >
         FDFS
@@ -534,24 +521,12 @@ export default function WatchlistPage() {
             zIndex: 10,
           }}
         >
-          <p
-            style={{
-              fontFamily: "Georgia, serif",
-              fontSize: 22,
-              fontStyle: "italic",
-              color: "rgba(255,255,255,0.4)",
-            }}
-          >
+          <p className="t-sub" style={{ color: "rgba(255,255,255,0.4)" }}>
             The reel is empty.
           </p>
           <p
-            style={{
-              fontFamily: "Georgia, serif",
-              fontSize: 14,
-              fontStyle: "italic",
-              color: "rgba(255,255,255,0.2)",
-              marginTop: 8,
-            }}
+            className="t-meta"
+            style={{ color: "rgba(255,255,255,0.2)", marginTop: 8 }}
           >
             Search for a film and add it to your watchlist.
           </p>
@@ -562,16 +537,13 @@ export default function WatchlistPage() {
           <button
             onClick={handleSpin}
             disabled={isSpinning}
+            className="t-title"
             style={{
               position: "absolute",
               top: 40,
               left: "50%",
               transform: "translateX(-50%)",
               zIndex: 30,
-              fontFamily: "Georgia, serif",
-              fontSize: 14,
-              fontStyle: "italic",
-              fontWeight: 400,
               color: isSpinning
                 ? "rgba(255,255,255,0.3)"
                 : "rgba(255,255,255,0.6)",
@@ -583,7 +555,6 @@ export default function WatchlistPage() {
               backdropFilter: "blur(12px)",
               WebkitBackdropFilter: "blur(12px)",
               transition: "all 0.3s ease",
-              letterSpacing: "0.03em",
             }}
             onMouseEnter={(e) => {
               if (!isSpinning) {
@@ -805,28 +776,15 @@ export default function WatchlistPage() {
                 gap: 16,
               }}
             >
-              <div
-                style={{
-                  fontFamily: "Georgia, serif",
-                  fontSize: 11,
-                  fontStyle: "italic",
-                  color: "rgba(255,255,255,0.2)",
-                  letterSpacing: "0.05em",
-                }}
-              >
+              <div className="t-label" style={{ color: "rgba(255,255,255,0.2)" }}>
                 {centeredIndex + 1} of {watchlist.length}
               </div>
               {!showRating && watchlist[centeredIndex] && (
                 <div
-                  style={{
-                    fontFamily: "-apple-system, sans-serif",
-                    fontSize: 11,
-                    color: "rgba(255,255,255,0.38)",
-                    letterSpacing: "0.06em",
-                    marginTop: 4,
-                  }}
+                  className="t-caption"
+                  style={{ color: "rgba(255,255,255,0.38)", marginTop: 4 }}
                 >
-                  {watchlist[centeredIndex].language}
+                  {formatLanguage(watchlist[centeredIndex].language)}
                   {watchlist[centeredIndex].year != null
                     ? ` · ${watchlist[centeredIndex].year}`
                     : ""}
@@ -972,14 +930,11 @@ export default function WatchlistPage() {
                     }}
                   >
                     <div
+                      className="t-title-sm"
                       style={{
-                        fontFamily: "Georgia, serif",
-                        fontSize: 13,
-                        fontStyle: "italic",
                         color: "rgba(255,255,255,0.75)",
                         textAlign: "center",
                         marginBottom: 14,
-                        lineHeight: 1.35,
                       }}
                     >
                       {watchlist[centeredIndex]?.title}
@@ -1007,10 +962,8 @@ export default function WatchlistPage() {
                           setShowRating(false)
                           setPendingRating(null)
                         }}
+                        className="t-button-sm"
                         style={{
-                          fontFamily: "Georgia, serif",
-                          fontSize: 11,
-                          fontStyle: "italic",
                           color: "rgba(255,255,255,0.35)",
                           background: "none",
                           border: "none",
@@ -1062,14 +1015,11 @@ export default function WatchlistPage() {
                     }}
                   >
                     <div
+                      className="t-title-sm"
                       style={{
-                        fontFamily: "Georgia, serif",
-                        fontSize: 13,
-                        fontStyle: "italic",
                         color: "rgba(255,255,255,0.75)",
                         textAlign: "center",
                         marginBottom: 14,
-                        lineHeight: 1.35,
                       }}
                     >
                       {watchlist[centeredIndex]?.title}
@@ -1078,13 +1028,8 @@ export default function WatchlistPage() {
 
                     <div style={{ display: "grid", gap: 12 }}>
                       <label
-                        style={{
-                          fontFamily: "-apple-system, sans-serif",
-                          fontSize: 11,
-                          letterSpacing: "0.06em",
-                          textTransform: "uppercase",
-                          color: "rgba(255,255,255,0.45)",
-                        }}
+                        className="t-label"
+                        style={{ color: "rgba(255,255,255,0.45)" }}
                       >
                         Optional review
                       </label>
@@ -1093,6 +1038,7 @@ export default function WatchlistPage() {
                         onChange={(e) => setReviewText(e.target.value)}
                         placeholder="Write a quick thought... (optional)"
                         rows={4}
+                        className="t-body"
                         style={{
                           width: "100%",
                           resize: "vertical",
@@ -1101,20 +1047,16 @@ export default function WatchlistPage() {
                           background: "rgba(255,255,255,0.04)",
                           color: "rgba(255,255,255,0.86)",
                           padding: "10px 12px",
-                          fontFamily: "Georgia, serif",
-                          fontSize: 13,
-                          fontStyle: "italic",
                           outline: "none",
                         }}
                       />
 
                       <label
+                        className="t-label-value"
                         style={{
                           display: "flex",
                           alignItems: "center",
                           gap: 8,
-                          fontFamily: "-apple-system, sans-serif",
-                          fontSize: 12,
                           color: "rgba(255,255,255,0.62)",
                         }}
                       >
@@ -1133,13 +1075,8 @@ export default function WatchlistPage() {
                       {alreadyWatchedEarlier && (
                         <div style={{ display: "grid", gap: 6 }}>
                           <label
-                            style={{
-                              fontFamily: "-apple-system, sans-serif",
-                              fontSize: 11,
-                              letterSpacing: "0.06em",
-                              textTransform: "uppercase",
-                              color: "rgba(255,255,255,0.45)",
-                            }}
+                            className="t-label"
+                            style={{ color: "rgba(255,255,255,0.45)" }}
                           >
                             Watched on
                           </label>
@@ -1148,14 +1085,13 @@ export default function WatchlistPage() {
                             value={watchedDate}
                             max={getTodayDateInput()}
                             onChange={(e) => setWatchedDate(e.target.value)}
+                            className="t-label-value"
                             style={{
                               borderRadius: 10,
                               border: "1px solid rgba(255,255,255,0.12)",
                               background: "rgba(255,255,255,0.04)",
                               color: "rgba(255,255,255,0.86)",
                               padding: "10px 12px",
-                              fontFamily: "-apple-system, sans-serif",
-                              fontSize: 13,
                               outline: "none",
                             }}
                           />
@@ -1179,10 +1115,8 @@ export default function WatchlistPage() {
                           setShowReviewStep(false)
                           setPendingRating(null)
                         }}
+                        className="t-button-sm"
                         style={{
-                          fontFamily: "Georgia, serif",
-                          fontSize: 11,
-                          fontStyle: "italic",
                           color: "rgba(255,255,255,0.35)",
                           background: "none",
                           border: "none",
@@ -1200,10 +1134,8 @@ export default function WatchlistPage() {
                             e.stopPropagation()
                             submitWatchedFlow(true)
                           }}
+                          className="t-button-sm"
                           style={{
-                            fontFamily: "-apple-system, sans-serif",
-                            fontSize: 11,
-                            letterSpacing: "0.04em",
                             color: "rgba(255,255,255,0.7)",
                             background: "rgba(255,255,255,0.08)",
                             border: "1px solid rgba(255,255,255,0.14)",
@@ -1220,10 +1152,8 @@ export default function WatchlistPage() {
                             e.stopPropagation()
                             submitWatchedFlow(false)
                           }}
+                          className="t-button-sm"
                           style={{
-                            fontFamily: "-apple-system, sans-serif",
-                            fontSize: 11,
-                            letterSpacing: "0.04em",
                             color: "rgba(20,20,22,0.9)",
                             background: "rgba(255,255,255,0.9)",
                             border: "1px solid rgba(255,255,255,0.2)",
@@ -1242,14 +1172,22 @@ export default function WatchlistPage() {
 
               {actionLoading && (
                 <p
-                  style={{
-                    fontFamily: "Georgia, serif",
-                    fontSize: 13,
-                    fontStyle: "italic",
-                    color: "rgba(255,255,255,0.3)",
-                  }}
+                  className="t-meta"
+                  style={{ color: "rgba(255,255,255,0.3)" }}
                 >
                   Updating...
+                </p>
+              )}
+
+              {actionError && !actionLoading && (
+                <p
+                  className="t-caption"
+                  style={{
+                    color: "rgba(255,180,180,0.75)",
+                    maxWidth: 360,
+                  }}
+                >
+                  {actionError}
                 </p>
               )}
             </div>
