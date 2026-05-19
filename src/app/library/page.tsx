@@ -8,6 +8,7 @@ import { formatLanguage } from "@/lib/tmdb"
 import RatingDisplay from "@/components/RatingDisplay"
 import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
+import FilterChip from "@/components/FilterChip"
 
 function LibraryPoster({
   film,
@@ -182,7 +183,7 @@ export default function LibraryPage() {
 
   return (
     <main
-      className="min-h-screen"
+      className="min-h-screen page-with-mobile-tabs"
       style={{ background: "var(--background-library)" }}
     >
       <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
@@ -204,7 +205,7 @@ export default function LibraryPage() {
       <header
         style={{
           position: "relative",
-          paddingTop: isMobile ? 96 : 128,
+          paddingTop: isMobile ? 80 : 128,
           paddingBottom: isMobile ? 32 : 56,
           paddingLeft: isMobile ? 20 : 56,
           paddingRight: isMobile ? 20 : 56,
@@ -248,7 +249,7 @@ export default function LibraryPage() {
         <div
           style={{
             position: "sticky",
-            top: isMobile ? 56 : 64,
+            top: isMobile ? 52 : 64,
             zIndex: 30,
             display: "flex",
             alignItems: "center",
@@ -293,52 +294,16 @@ export default function LibraryPage() {
               justifyContent: "center",
             }}
           >
-            {languages.map((lang) => {
-              const active = selectedLanguage === lang
-              return (
-                <button
-                  key={lang}
-                  type="button"
-                  onClick={() =>
-                    setSelectedLanguage((prev) =>
-                      prev === lang ? "All" : lang,
-                    )
-                  }
-                  className="t-button-sm"
-                  style={{
-                    color: active
-                      ? "var(--text-inverse)"
-                      : "var(--text-emphasis)",
-                    padding: "8px 16px",
-                    border: active
-                      ? "1px solid var(--text-strong)"
-                      : "1px solid var(--border-default)",
-                    borderRadius: 999,
-                    background: active
-                      ? "var(--text-strong)"
-                      : "var(--tint-base)",
-                    cursor: "pointer",
-                    transition:
-                      "color 0.2s ease, background 0.2s ease, border-color 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!active) {
-                      e.currentTarget.style.borderColor = "var(--border-strong)"
-                      e.currentTarget.style.background = "var(--tint-hover)"
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!active) {
-                      e.currentTarget.style.borderColor =
-                        "var(--border-default)"
-                      e.currentTarget.style.background = "var(--tint-base)"
-                    }
-                  }}
-                >
-                  {lang}
-                </button>
-              )
-            })}
+            {languages.map((lang) => (
+              <FilterChip
+                key={lang}
+                label={lang}
+                active={selectedLanguage === lang}
+                onClick={() =>
+                  setSelectedLanguage((prev) => (prev === lang ? "All" : lang))
+                }
+              />
+            ))}
           </div>
         </div>
       )}

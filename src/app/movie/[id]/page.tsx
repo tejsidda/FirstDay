@@ -22,6 +22,7 @@ import RatingDisplay from "@/components/RatingDisplay"
 import StandingOvationInput from "@/components/StandingOvationInput"
 import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
+import BackButton from "@/components/BackButton"
 
 const CAST_PREVIEW = 12
 
@@ -375,13 +376,14 @@ export default function MovieDetailPage() {
 
   return (
     <main
-      className="min-h-screen"
+      className="min-h-screen page-with-mobile-tabs"
       style={{
         background: "var(--background-movie)",
         color: "var(--text-emphasis)",
       }}
     >
       <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
+      <BackButton />
 
       {/* ── Hero ── */}
       <section

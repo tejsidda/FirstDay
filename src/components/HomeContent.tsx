@@ -427,7 +427,7 @@ export default function HomeContent() {
 
   return (
     <main
-      className="relative text-white"
+      className="relative text-white page-with-mobile-tabs"
       style={{ background: "var(--background-raised)", minHeight: "100vh" }}
     >
       <style>{`

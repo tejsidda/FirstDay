@@ -6,7 +6,9 @@ import { getMovieDetails, formatLanguage } from "@/lib/tmdb"
 import type { Movie } from "@/lib/types"
 import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
+import FilterChip from "@/components/FilterChip"
 import { addToWatchlist } from "@/lib/db"
+import { useIsMobile, MOBILE_TAB_BAR_INSET } from "@/hooks/useIsMobile"
 
 const TMDB_CACHE_KEY = "fdfs:wrapped:tmdb-cache:v1"
 
@@ -73,7 +75,7 @@ function getWatchedMonth(m: Movie): string | null {
 export default function WrappedPage() {
   const [watched, setWatched] = useState<Movie[]>([])
   const [loading, setLoading] = useState(true)
-  const [isMobile, setIsMobile] = useState(false)
+  const isMobile = useIsMobile()
   const [searchOpen, setSearchOpen] = useState(false)
   const [scope, setScope] = useState<Scope>("all")
   const [tmdbCache, setTmdbCache] = useState<CacheMap>({})
@@ -82,14 +84,6 @@ export default function WrappedPage() {
     total: number
   } | null>(null)
   const currentYear = new Date().getFullYear()
-
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 768px)")
-    const update = () => setIsMobile(media.matches)
-    update()
-    media.addEventListener("change", update)
-    return () => media.removeEventListener("change", update)
-  }, [])
 
   useEffect(() => {
     let active = true
@@ -190,7 +184,7 @@ export default function WrappedPage() {
   if (watched.length === 0) {
     return (
       <main
-        className="min-h-screen"
+        className="min-h-screen page-with-mobile-tabs"
         style={{ background: "var(--background-raised)" }}
       >
         <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
@@ -233,17 +227,18 @@ export default function WrappedPage() {
 
   return (
     <main
-      className="min-h-screen"
+      className="min-h-screen page-with-mobile-tabs"
       style={{ background: "var(--background-raised)" }}
     >
       <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
 
       {/* ── Masthead ── */}
       <header
+        className={isMobile ? "mobile-stagger-in" : undefined}
         style={{
           position: "relative",
-          paddingTop: isMobile ? 100 : 140,
-          paddingBottom: isMobile ? 40 : 56,
+          paddingTop: isMobile ? 88 : 140,
+          paddingBottom: isMobile ? 32 : 56,
           paddingLeft: isMobile ? 20 : 56,
           paddingRight: isMobile ? 20 : 56,
           textAlign: "center",
@@ -256,7 +251,9 @@ export default function WrappedPage() {
           {scope === "year" ? `${currentYear} in film` : "Your year in film"}
         </div>
         <div
-          className="t-display-num t-tabular"
+          className={
+            isMobile ? "t-display-num-compact t-tabular" : "t-display-num t-tabular"
+          }
           style={{ color: "var(--text-strong)" }}
         >
           {stats.totalFilms}
@@ -309,20 +306,24 @@ export default function WrappedPage() {
         style={{
           maxWidth: 1100,
           margin: "0 auto",
-          padding: isMobile ? "0 20px 80px" : "0 56px 120px",
+          padding: isMobile
+            ? `0 16px calc(32px + ${MOBILE_TAB_BAR_INSET})`
+            : "0 56px 120px",
         }}
       >
         <div
           style={{
             display: "grid",
             gridTemplateColumns: isMobile
-              ? "1fr"
+              ? "repeat(2, minmax(0, 1fr))"
               : "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: isMobile ? 16 : 24,
+            gap: isMobile ? 10 : 24,
           }}
         >
           {/* Hours watched */}
           <StatCard
+            compact={isMobile}
+            staggerClass="mobile-stagger-in mobile-stagger-in-1"
             label="Time at the cinema"
             value={
               stats.totalRuntime != null
@@ -340,6 +341,8 @@ export default function WrappedPage() {
 
           {/* Average rating */}
           <StatCard
+            compact={isMobile}
+            staggerClass="mobile-stagger-in mobile-stagger-in-2"
             label="Average rating"
             value={stats.avgRating != null ? stats.avgRating.toFixed(1) : "—"}
             hint={
@@ -351,6 +354,8 @@ export default function WrappedPage() {
 
           {/* Standing ovations */}
           <StatCard
+            compact={isMobile}
+            staggerClass="mobile-stagger-in mobile-stagger-in-3"
             label="Standing ovations"
             value={String(stats.tens)}
             hint={`films rated 10/10`}
@@ -358,6 +363,8 @@ export default function WrappedPage() {
 
           {/* Top language */}
           <StatCard
+            compact={isMobile}
+            staggerClass="mobile-stagger-in mobile-stagger-in-4"
             label="Top language"
             value={stats.topLanguage?.name || "—"}
             hint={
@@ -371,6 +378,8 @@ export default function WrappedPage() {
 
           {/* Top genre */}
           <StatCard
+            compact={isMobile}
+            staggerClass="mobile-stagger-in mobile-stagger-in-5"
             label="Top genre"
             value={stats.topGenre?.name || (tmdbProgress ? "…" : "—")}
             hint={
@@ -386,6 +395,8 @@ export default function WrappedPage() {
 
           {/* Most prolific month */}
           <StatCard
+            compact={isMobile}
+            staggerClass="mobile-stagger-in mobile-stagger-in-6"
             label="Most cinematic month"
             value={stats.topMonth?.name || "—"}
             hint={
@@ -400,7 +411,11 @@ export default function WrappedPage() {
 
         {/* Top rated */}
         {stats.topRated.length > 0 && (
-          <Section title="Highest rated">
+          <Section
+            title="Highest rated"
+            compact={isMobile}
+            className="mobile-stagger-in mobile-stagger-in-4"
+          >
             <ol
               style={{
                 listStyle: "none",
@@ -430,14 +445,14 @@ export default function WrappedPage() {
 
         {/* Per-year sparkline */}
         {stats.perYear.length > 1 && (
-          <Section title="Films per year">
+          <Section title="Films per year" compact={isMobile}>
             <PerYearBars data={stats.perYear} />
           </Section>
         )}
 
         {/* Language breakdown */}
         {stats.languages.length > 0 && (
-          <Section title="Languages you visited">
+          <Section title="Languages you visited" compact={isMobile}>
             <div
               style={{
                 display: "flex",
@@ -454,7 +469,7 @@ export default function WrappedPage() {
 
         {/* Genres */}
         {stats.genres.length > 0 && (
-          <Section title="Genres you visited">
+          <Section title="Genres you visited" compact={isMobile}>
             <div
               style={{
                 display: "flex",
@@ -489,24 +504,13 @@ function ScopeTab({
   onClick: () => void
 }) {
   return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
+    <FilterChip
+      label={label}
+      active={active}
       onClick={onClick}
-      className="t-button-sm"
-      style={{
-        color: active ? "var(--text-inverse)" : "var(--text-emphasis)",
-        background: active ? "var(--text-strong)" : "transparent",
-        border: "none",
-        borderRadius: 999,
-        padding: "8px 18px",
-        cursor: "pointer",
-        transition: "background 0.2s ease, color 0.2s ease",
-      }}
-    >
-      {label}
-    </button>
+      ariaLabel={`Show ${label}`}
+      role="tab"
+    />
   )
 }
 
@@ -514,33 +518,42 @@ function StatCard({
   label,
   value,
   hint,
+  compact,
+  staggerClass,
 }: {
   label: string
   value: string
   hint?: string
+  compact?: boolean
+  staggerClass?: string
 }) {
   return (
     <div
+      className={staggerClass}
       style={{
-        padding: 24,
+        padding: compact ? 14 : 24,
         background: "var(--tint-base)",
         border: "1px solid var(--border-default)",
-        borderRadius: 16,
+        borderRadius: compact ? 12 : 16,
       }}
     >
       <div className="t-label" style={{ color: "var(--text-label)" }}>
         {label}
       </div>
       <div
-        className="t-heading t-tabular"
-        style={{ marginTop: 12, color: "var(--text-strong)" }}
+        className={compact ? "t-title t-tabular" : "t-heading t-tabular"}
+        style={{ marginTop: compact ? 8 : 12, color: "var(--text-strong)" }}
       >
         {value}
       </div>
       {hint && (
         <div
           className="t-caption"
-          style={{ marginTop: 6, color: "var(--text-dim)" }}
+          style={{
+            marginTop: compact ? 4 : 6,
+            color: "var(--text-dim)",
+            fontSize: compact ? 10 : undefined,
+          }}
         >
           {hint}
         </div>
@@ -552,15 +565,20 @@ function StatCard({
 function Section({
   title,
   children,
+  compact,
+  className,
 }: {
   title: string
   children: React.ReactNode
+  compact?: boolean
+  className?: string
 }) {
   return (
     <section
+      className={className}
       style={{
-        marginTop: 56,
-        paddingTop: 40,
+        marginTop: compact ? 36 : 56,
+        paddingTop: compact ? 28 : 40,
         borderTop: "1px solid var(--border-default)",
       }}
     >

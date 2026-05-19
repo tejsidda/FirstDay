@@ -77,7 +77,7 @@
   /* Links / interactive text */
   --text-link: rgba(255, 255, 255, 0.48);
   --text-link-hover: rgba(255, 255, 255, 0.88);
-  --text-button: rgba(98, 40, 40, 0.5);
+  --text-button: rgba(255, 255, 255, 0.5);
   --text-button-hover: rgba(255, 255, 255, 0.75);
   --text-search: rgba(255, 255, 255, 0.3);
   --text-search-hover: rgba(255, 255, 255, 0.6);
@@ -180,7 +180,7 @@ body::after {
   content: "";
   position: fixed;
   inset: 0;
-  opacity: 0.038;
+  opacity: 0.02;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
   background-repeat: repeat;
   background-size: 128px 128px;
@@ -449,4 +449,118 @@ a,
 [data-reveal].visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* ─── Mobile app chrome ─── */
+@keyframes mobileTabBarEnter {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mobileTopBarEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mobileSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mobileTabIconPop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.mobile-tab-bar {
+  animation: mobileTabBarEnter 0.42s var(--ease-decelerate) both;
+}
+
+.mobile-top-bar-enter {
+  animation: mobileTopBarEnter 0.35s var(--ease-decelerate) both;
+}
+
+.mobile-tab-item:active {
+  transform: scale(0.94);
+  transition: transform 0.12s var(--ease-productive);
+}
+
+.mobile-tab-icon-active {
+  animation: mobileTabIconPop 0.35s var(--ease-decelerate);
+}
+
+.mobile-stagger-in {
+  animation: mobileSlideUp 0.5s var(--ease-decelerate) both;
+}
+
+.mobile-stagger-in-1 {
+  animation-delay: 0.05s;
+}
+.mobile-stagger-in-2 {
+  animation-delay: 0.1s;
+}
+.mobile-stagger-in-3 {
+  animation-delay: 0.15s;
+}
+.mobile-stagger-in-4 {
+  animation-delay: 0.2s;
+}
+.mobile-stagger-in-5 {
+  animation-delay: 0.25s;
+}
+.mobile-stagger-in-6 {
+  animation-delay: 0.3s;
+}
+
+.t-display-num-compact {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-style: italic;
+  font-size: clamp(72px, 22vw, 120px);
+  letter-spacing: -0.04em;
+  line-height: 0.92;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-tab-bar,
+  .mobile-top-bar-enter,
+  .mobile-stagger-in,
+  .mobile-tab-icon-active {
+    animation: none !important;
+  }
+
+  .mobile-tab-indicator {
+    transition: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-with-mobile-tabs {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
 }

@@ -1,16 +1,21 @@
 "use client"
 
-import Link from "next/link"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   getWatchlist,
+  getWatched,
   markAsWatched,
   removeFromWatchlist,
+  addToWatchlist,
 } from "@/lib/db"
 import type { Movie } from "@/lib/types"
-import { formatLanguage } from "@/lib/tmdb"
+import { formatLanguage, getMovieDetails } from "@/lib/tmdb"
 import StandingOvationInput from "@/components/StandingOvationInput"
+import TopOverlayNav from "@/components/TopOverlayNav"
+import MovieSearch from "@/components/MovieSearch"
+import FilterChip from "@/components/FilterChip"
+import { MOBILE_TAB_BAR_INSET } from "@/hooks/useIsMobile"
 
 const DEFAULT_AMBIENT: [number, number, number] = [45, 38, 28]
 
@@ -185,8 +190,68 @@ const CARD_WIDTH = 280
 const CARD_GAP = 20
 const CARD_TOTAL = CARD_WIDTH + CARD_GAP
 
+const TMDB_GENRE_CACHE_KEY = "fdfs:watchlist:genre-cache:v1"
+
+type TMDBGenre = { id: number; name: string }
+type GenreCache = Record<string, { genres: TMDBGenre[] }>
+
+function readGenreCache(): GenreCache {
+  if (typeof window === "undefined") return {}
+  try {
+    const raw = window.sessionStorage.getItem(TMDB_GENRE_CACHE_KEY)
+    return raw ? (JSON.parse(raw) as GenreCache) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeGenreCache(cache: GenreCache) {
+  if (typeof window === "undefined") return
+  try {
+    window.sessionStorage.setItem(TMDB_GENRE_CACHE_KEY, JSON.stringify(cache))
+  } catch {
+    /* ignore */
+  }
+}
+
+async function hydrateGenreCache(
+  films: Movie[],
+  cache: GenreCache,
+  onUpdate: (next: GenreCache) => void,
+) {
+  const missing = films.filter((f) => !cache[f.id])
+  if (missing.length === 0) return
+
+  const next = { ...cache }
+  const batchSize = 8
+  for (let i = 0; i < missing.length; i += batchSize) {
+    const slice = missing.slice(i, i + batchSize)
+    await Promise.all(
+      slice.map(async (film) => {
+        try {
+          const d = await getMovieDetails(film.id)
+          if (!d?.id) return
+          next[film.id] = { genres: d.genres || [] }
+        } catch {
+          next[film.id] = { genres: [] }
+        }
+      }),
+    )
+    writeGenreCache(next)
+    onUpdate({ ...next })
+  }
+}
+
+function filmHasGenre(filmId: string, genre: string, cache: GenreCache) {
+  return (cache[filmId]?.genres || []).some((g) => g.name === genre)
+}
+
 export default function WatchlistPage() {
   const [watchlist, setWatchlist] = useState<Movie[]>([])
+  const [watched, setWatched] = useState<Movie[]>([])
+  const [genreCache, setGenreCache] = useState<GenreCache>({})
+  const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [centeredIndex, setCenteredIndex] = useState(0)
   const [ambientRgb, setAmbientRgb] = useState<[number, number, number]>(DEFAULT_AMBIENT)
@@ -203,19 +268,81 @@ export default function WatchlistPage() {
   const stripRef = useRef<HTMLDivElement>(null)
   const ambientCacheRef = useRef<Record<string, [number, number, number]>>({})
   const scrollTickingRef = useRef(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 768px)")
+    const update = () => setIsMobile(media.matches)
+    update()
+    media.addEventListener("change", update)
+    return () => media.removeEventListener("change", update)
+  }, [])
 
   useEffect(() => {
     let active = true
     async function load() {
       setLoading(true)
-      const films = await getWatchlist()
+      const [films, seen] = await Promise.all([getWatchlist(), getWatched()])
       if (!active) return
       setWatchlist(films)
+      setWatched(seen)
+      const cache = readGenreCache()
+      setGenreCache(cache)
       setLoading(false)
+      const toHydrate = [...films, ...seen.slice(0, 12)]
+      const unique = Array.from(new Map(toHydrate.map((m) => [m.id, m])).values())
+      hydrateGenreCache(unique, cache, (next) => {
+        if (active) setGenreCache(next)
+      })
     }
     load()
-    return () => { active = false }
+    return () => {
+      active = false
+    }
   }, [])
+
+  const suggestedGenres = useMemo(() => {
+    const recent = [...watched]
+      .filter((w) => w.watchedAt)
+      .sort(
+        (a, b) =>
+          new Date(b.watchedAt!).getTime() - new Date(a.watchedAt!).getTime(),
+      )
+      .slice(0, 12)
+
+    const counts = new Map<string, number>()
+    for (const film of recent) {
+      for (const g of genreCache[film.id]?.genres || []) {
+        counts.set(g.name, (counts.get(g.name) || 0) + 1)
+      }
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name]) => name)
+  }, [watched, genreCache])
+
+  const pickPoolIndices = useMemo(() => {
+    if (!selectedGenre) {
+      return watchlist.map((_, i) => i)
+    }
+    return watchlist
+      .map((film, i) =>
+        filmHasGenre(film.id, selectedGenre, genreCache) ? i : -1,
+      )
+      .filter((i) => i >= 0)
+  }, [watchlist, selectedGenre, genreCache])
+
+  const handleAdd = async (movie: Movie) => {
+    const ok = await addToWatchlist(movie)
+    if (ok) {
+      const fresh = await getWatchlist()
+      setWatchlist(fresh)
+      hydrateGenreCache([movie], readGenreCache(), setGenreCache)
+      return { ok: true }
+    }
+    return { ok: false, message: "Already on your watchlist." }
+  }
 
   // Extract ambient color when centered film changes
   useEffect(() => {
@@ -410,9 +537,17 @@ export default function WatchlistPage() {
 
   const handleSpin = useCallback(() => {
     if (isSpinning || watchlist.length === 0 || !stripRef.current) return
+
+    const pool =
+      pickPoolIndices.length > 0
+        ? pickPoolIndices
+        : watchlist.map((_, i) => i)
+
+    if (pool.length === 0) return
+
     setIsSpinning(true)
 
-    const randomIndex = Math.floor(Math.random() * watchlist.length)
+    const randomIndex = pool[Math.floor(Math.random() * pool.length)]
     const targetScroll = randomIndex * CARD_TOTAL
     const startScroll = stripRef.current.scrollLeft
     const totalDistance = watchlist.length * CARD_TOTAL * 2 + targetScroll
@@ -437,12 +572,13 @@ export default function WatchlistPage() {
         if (strip) {
           strip.scrollTo({ left: targetScroll, behavior: "smooth" })
         }
+        setCenteredIndex(randomIndex)
         setTimeout(() => setIsSpinning(false), 500)
       }
     }
 
     requestAnimationFrame(animate)
-  }, [isSpinning, watchlist.length])
+  }, [isSpinning, watchlist.length, pickPoolIndices])
 
   const ambientColor = `rgba(${ambientRgb[0]},${ambientRgb[1]},${ambientRgb[2]},0.25)`
 
@@ -469,6 +605,7 @@ export default function WatchlistPage() {
 
   return (
     <main
+      className="page-with-mobile-tabs"
       style={{
         position: "relative",
         width: "100vw",
@@ -493,21 +630,7 @@ export default function WatchlistPage() {
         }}
       />
 
-      {/* FDFS logo */}
-      <Link
-        href="/home"
-        className="t-button"
-        style={{
-          position: "absolute",
-          top: 20,
-          left: 24,
-          zIndex: 50,
-          color: "rgba(255,255,255,0.4)",
-          textDecoration: "none",
-        }}
-      >
-        FDFS
-      </Link>
+      <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
 
       {watchlist.length === 0 ? (
         <div
@@ -533,46 +656,109 @@ export default function WatchlistPage() {
         </div>
       ) : (
         <>
-          {/* Spin button */}
-          <button
-            onClick={handleSpin}
-            disabled={isSpinning}
-            className="t-title"
+          {/* Genre pick + spin */}
+          <div
             style={{
               position: "absolute",
-              top: 40,
+              top: isMobile ? 72 : 80,
               left: "50%",
               transform: "translateX(-50%)",
               zIndex: 30,
-              color: isSpinning
-                ? "rgba(255,255,255,0.3)"
-                : "rgba(255,255,255,0.6)",
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 999,
-              padding: "12px 32px",
-              cursor: isSpinning ? "default" : "pointer",
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
-              transition: "all 0.3s ease",
-            }}
-            onMouseEnter={(e) => {
-              if (!isSpinning) {
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.25)"
-                e.currentTarget.style.color = "rgba(255,255,255,0.85)"
-              }
-            }}
-            onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"
-              e.currentTarget.style.color = isSpinning
-                ? "rgba(255,255,255,0.3)"
-                : "rgba(255,255,255,0.6)"
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 12,
+              width: "min(640px, calc(100vw - 32px))",
             }}
           >
-            {isSpinning
-              ? "Finding your film..."
-              : "What should I watch tonight?"}
-          </button>
+            {suggestedGenres.length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  justifyContent: "center",
+                }}
+              >
+                <FilterChip
+                  label="All"
+                  active={selectedGenre === null}
+                  onClick={() => setSelectedGenre(null)}
+                />
+                {suggestedGenres.map((genre) => (
+                  <FilterChip
+                    key={genre}
+                    label={genre}
+                    active={selectedGenre === genre}
+                    onClick={() =>
+                      setSelectedGenre((prev) =>
+                        prev === genre ? null : genre,
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            )}
+            <p
+              className="t-caption"
+              style={{
+                margin: 0,
+                textAlign: "center",
+                color: "rgba(255,255,255,0.35)",
+                maxWidth: 420,
+              }}
+            >
+              {suggestedGenres.length > 0
+                ? "Genres from your recent watches — pick one, then spin the reel."
+                : "Rate a few films and we’ll suggest genres from what you’ve been watching."}
+            </p>
+            <button
+              type="button"
+              onClick={handleSpin}
+              disabled={
+                isSpinning ||
+                (selectedGenre != null && pickPoolIndices.length === 0)
+              }
+              className="t-button"
+              style={{
+                color:
+                  isSpinning ||
+                  (selectedGenre != null && pickPoolIndices.length === 0)
+                    ? "rgba(255,255,255,0.35)"
+                    : "var(--background-base)",
+                background:
+                  isSpinning ||
+                  (selectedGenre != null && pickPoolIndices.length === 0)
+                    ? "rgba(255,255,255,0.06)"
+                    : "rgba(255,255,255,0.92)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                borderRadius: 999,
+                padding: "12px 28px",
+                cursor:
+                  isSpinning ||
+                  (selectedGenre != null && pickPoolIndices.length === 0)
+                    ? "default"
+                    : "pointer",
+                backdropFilter: "blur(12px)",
+                WebkitBackdropFilter: "blur(12px)",
+                transition: "all 0.3s ease",
+              }}
+            >
+              {isSpinning
+                ? "Finding your film…"
+                : selectedGenre
+                  ? `Pick a ${selectedGenre} film`
+                  : "Pick something for tonight"}
+            </button>
+            {selectedGenre != null && pickPoolIndices.length === 0 && (
+              <p
+                className="t-caption"
+                style={{ margin: 0, color: "rgba(255,180,180,0.7)" }}
+              >
+                Nothing on your watchlist matches {selectedGenre} yet.
+              </p>
+            )}
+          </div>
 
           {/* The film strip — vertically centered */}
           <div
@@ -765,7 +951,9 @@ export default function WatchlistPage() {
             <div
               style={{
                 position: "absolute",
-                bottom: 50,
+                bottom: isMobile
+                  ? `calc(24px + ${MOBILE_TAB_BAR_INSET})`
+                  : 50,
                 left: "50%",
                 transform: "translateX(-50%)",
                 textAlign: "center",
@@ -1193,6 +1381,10 @@ export default function WatchlistPage() {
             </div>
           )}
         </>
+      )}
+
+      {searchOpen && (
+        <MovieSearch onAdd={handleAdd} onClose={() => setSearchOpen(false)} />
       )}
     </main>
   )

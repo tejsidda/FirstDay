@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Playfair_Display } from "next/font/google";
 import "./globals.css";
+import NavigateBackListener from "@/components/NavigateBackListener";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,6 +20,12 @@ export const metadata: Metadata = {
   description: "My own Movie Log App. to track my favorite movies and TV shows.",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -30,6 +37,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${playfair.variable} antialiased`}
         style={{ background: "var(--background-base)" }}
       >
+        <NavigateBackListener />
         {children}
       </body>
     </html>
