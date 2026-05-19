@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 // ─── Phase flow: "intro" → (tap) → "login" → (valid sign in) → "success" → redirect to /home
 type Phase = "intro" | "login" | "success";
@@ -146,11 +147,23 @@ export default function LandingPage() {
   // Sign in: validates email/password; on success shows Casablanca quote then redirects.
   // Change "/home" to another path if you want to send users elsewhere after login.
   // Change 2500 to keep success screen visible longer/shorter before redirect; 1000 is delay before "Redirecting..." text.
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
     if (!email.trim() || !password.trim()) {
+      setShowToast(true);
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = window.setTimeout(() => setShowToast(false), 2500);
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password: password.trim(),
+    });
+    if (error) {
+      console.error("Sign in error:", error.message);
       setShowToast(true);
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
       toastTimerRef.current = window.setTimeout(() => setShowToast(false), 2500);
@@ -185,8 +198,8 @@ export default function LandingPage() {
 
   return (
     <main
-      className="relative h-screen w-screen overflow-hidden bg-black text-white"
-      style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+      className="relative h-screen w-screen overflow-hidden text-white"
+      style={{ fontFamily: "var(--font-display)", background: "var(--background-base)" }}
       onClick={handleMainClick}
     >
       {/* Background: poster grid. Change opacity-[0.06] for stronger/softer posters; kenburns = slow zoom/drift (see CSS). */}
@@ -206,7 +219,7 @@ export default function LandingPage() {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(ellipse at center, rgba(212,175,55,0.02) 0%, transparent 60%), radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.75) 78%, #000 100%)",
+              "radial-gradient(ellipse at center, rgba(212,175,55,0.02) 0%, transparent 60%), radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.75) 78%, var(--background-base) 100%)",
           }}
         />
       </div>
@@ -298,9 +311,9 @@ export default function LandingPage() {
                 <div className="w-full md:w-1/2 md:pr-16 md:pl-8 px-2">
                   <div className="flex md:h-[70vh] flex-col justify-center md:items-start items-center">
                     <div
-                      className="w-full max-w-[400px] rounded-[14px] border border-[rgba(255,255,255,0.06)] px-9 py-11 shadow-[0_20px_60px_rgba(0,0,0,0.5)] login-card-appear"
+                      className="w-full max-w-[400px] rounded-[14px] border border-[rgba(255,255,255,0.05)] px-9 py-11 shadow-[0_20px_60px_rgba(0,0,0,0.5)] login-card-appear"
                       style={{
-                        background: "rgba(18, 16, 12, 0.7)",
+                        background: "rgba(20, 20, 24, 0.7)",
                         backdropFilter: "blur(20px)",
                       }}
                       onClick={(e) => e.stopPropagation()}
@@ -324,7 +337,7 @@ export default function LandingPage() {
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="&quot;What's in a name?&quot;"
-                          className="fdfs-input w-full rounded-[8px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-[14px] py-3 text-[14px] text-[rgba(255,255,255,0.8)] outline-none"
+                          className="fdfs-input w-full rounded-[8px] border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] px-[14px] py-3 text-[14px] text-[rgba(255,255,255,0.8)] outline-none"
                           onClick={(e) => e.stopPropagation()}
                         />
 
@@ -337,7 +350,7 @@ export default function LandingPage() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="&quot;I see dead passwords.&quot;"
-                            className="fdfs-input w-full rounded-[8px] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.04)] px-[14px] py-3 text-[14px] text-[rgba(255,255,255,0.8)] outline-none"
+                            className="fdfs-input w-full rounded-[8px] border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] px-[14px] py-3 text-[14px] text-[rgba(255,255,255,0.8)] outline-none"
                             onClick={(e) => e.stopPropagation()}
                           />
                         </div>
@@ -380,7 +393,15 @@ export default function LandingPage() {
                           <button
                             type="button"
                             className="flex-1 rounded-[8px] border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] px-4 py-[11px] text-[12px] text-[rgba(255,255,255,0.4)] transition-all duration-300 ease-out hover:bg-[rgba(255,255,255,0.06)]"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await supabase.auth.signInWithOAuth({
+                                provider: "google",
+                                options: {
+                                  redirectTo: `${window.location.origin}/auth/callback`,
+                                },
+                              });
+                            }}
                           >
                             Google
                           </button>
@@ -446,7 +467,8 @@ export default function LandingPage() {
           font-weight: 600;
           line-height: 1.2;
           letter-spacing: -0.02em;
-          font-family: Georgia, "Times New Roman", serif;
+          font-family: var(--font-display);
+          font-style: italic;
           color: rgba(212, 175, 55, 0.75);
           font-size: 32px;
         }
@@ -474,7 +496,7 @@ export default function LandingPage() {
 
         .fdfs-input {
           transition: border-color 0.3s ease, box-shadow 0.3s ease;
-          font-family: Georgia, "Times New Roman", serif;
+          font-family: var(--font-body);
         }
 
         .fdfs-input::placeholder {

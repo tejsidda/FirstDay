@@ -3,6 +3,9 @@
 import Link from "next/link"
 import { useState } from "react"
 import { Movie } from "@/lib/types"
+import { formatLanguage } from "@/lib/tmdb"
+import RatingDisplay from "@/components/RatingDisplay"
+import StandingOvationInput from "@/components/StandingOvationInput"
 
 type Size = "large" | "small"
 
@@ -10,12 +13,10 @@ const sizeClasses = {
   large: {
     card: "min-w-[160px] w-[160px]",
     poster: "aspect-[2/3] rounded-[12px]",
-    title: "text-[14px]",
   },
   small: {
     card: "min-w-[140px] w-[140px]",
     poster: "aspect-[2/3] rounded-[12px]",
-    title: "text-[13px]",
   },
 }
 
@@ -26,7 +27,7 @@ export default function MoviePosterCard({
   onMarkWatched,
   onRemove,
 }: {
-  movie: Movie & { rating?: number }
+  movie: Movie & { rating?: number | null }
   size?: Size
   showRating?: boolean
   onMarkWatched?: (movie: Movie, rating: number) => void
@@ -91,9 +92,9 @@ export default function MoviePosterCard({
                     style={{
                       width: 44,
                       height: 44,
-                      background: "rgba(255,255,255,0.15)",
+                      background: "var(--glass-highlight)",
                       backdropFilter: "blur(8px)",
-                      border: "1px solid rgba(255,255,255,0.2)",
+                      border: "1px solid var(--glass-border)",
                     }}
                     aria-label="Mark as watched"
                     onClick={(e) => {
@@ -102,7 +103,7 @@ export default function MoviePosterCard({
                       setShowRatingPicker(true)
                     }}
                   >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-display)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                   </button>
@@ -116,9 +117,9 @@ export default function MoviePosterCard({
                     style={{
                       width: 44,
                       height: 44,
-                      background: "rgba(255,255,255,0.08)",
+                      background: "var(--tint-hover)",
                       backdropFilter: "blur(8px)",
-                      border: "1px solid rgba(255,255,255,0.1)",
+                      border: "1px solid var(--border-default)",
                     }}
                     aria-label="Remove from watchlist"
                     onClick={(e) => {
@@ -127,7 +128,7 @@ export default function MoviePosterCard({
                       onRemove(movie)
                     }}
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18" />
                       <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
@@ -135,36 +136,20 @@ export default function MoviePosterCard({
                 )}
               </div>
             ) : (
-              /* Rating picker — shows after clicking checkmark */
-              <div className="relative z-10 flex flex-col items-center gap-2">
-                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", fontFamily: "Georgia, serif" }}>
-                  Rate this film
+              <div
+                className="relative z-10 flex max-w-[min(100%,360px)] flex-col items-center gap-2 px-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p className="t-label" style={{ color: "var(--text-button)" }}>
+                  Standing ovation?
                 </p>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        onMarkWatched?.(movie, star)
-                        setShowRatingPicker(false)
-                      }}
-                      className="transition-transform duration-150 hover:scale-125"
-                      style={{
-                        fontSize: 22,
-                        color: "#f5c518",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: "2px 3px",
-                      }}
-                    >
-                      ★
-                    </button>
-                  ))}
-                </div>
+                <StandingOvationInput
+                  value={null}
+                  onChange={(r) => {
+                    onMarkWatched?.(movie, r)
+                    setShowRatingPicker(false)
+                  }}
+                />
               </div>
             )}
           </div>
@@ -183,24 +168,17 @@ export default function MoviePosterCard({
         )}
 
         {hasRating && (
-          <div className="absolute left-2 top-2 flex items-center gap-1 rounded-[6px] bg-black/60 px-2 py-1 text-[11px] backdrop-blur-[4px]">
-            <span className="font-medium" style={{ color: "#f5c518" }}>
-              ★
-            </span>
-            <span className="font-medium" style={{ color: "#f5c518" }}>
-              {movie.rating}
-            </span>
+          <div className="absolute left-2 top-2 rounded-[6px] bg-black/60 px-2 py-1 backdrop-blur-[4px]">
+            <RatingDisplay rating={movie.rating!} size="sm" />
           </div>
         )}
       </div>
 
-      <h3
-        className={`${s.title} mt-2.5 line-clamp-1 font-medium text-white/85`}
-      >
+      <h3 className="t-title-sm mt-2.5 line-clamp-1 text-white/85">
         {movie.title}
       </h3>
-      <p className="mt-1 text-[12px] text-white/35">
-        {movie.language}
+      <p className="t-caption mt-1 text-white/35">
+        {formatLanguage(movie.language)}
         {movie.year != null ? ` · ${movie.year}` : ""}
       </p>
     </Link>

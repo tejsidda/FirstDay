@@ -1,16 +1,24 @@
 import type { Metadata, Viewport } from "next";
+<<<<<<< HEAD
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import PullToRefresh from "@/components/PullToRefresh";
+=======
+import { Geist, Playfair_Display } from "next/font/google";
+import "./globals.css";
+import NavigateBackListener from "@/components/NavigateBackListener";
+>>>>>>> 5169cdb6fe86719acb4631b20c13950d4c5f1148
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
@@ -32,9 +40,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${playfair.variable} antialiased`}
+        style={{ background: "var(--background-base)" }}
       >
+<<<<<<< HEAD
         <PullToRefresh />
+=======
+        <NavigateBackListener />
+>>>>>>> 5169cdb6fe86719acb4631b20c13950d4c5f1148
         {children}
       </body>
     </html>
