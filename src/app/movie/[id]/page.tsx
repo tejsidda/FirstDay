@@ -22,6 +22,7 @@ import RatingDisplay from "@/components/RatingDisplay"
 import StandingOvationInput from "@/components/StandingOvationInput"
 import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
+import BackButton from "@/components/BackButton"
 
 const CAST_PREVIEW = 12
 
@@ -382,6 +383,7 @@ export default function MovieDetailPage() {
       }}
     >
       <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
+      <BackButton />
 
       {/* ── Hero ── */}
       <section

@@ -6,6 +6,7 @@ import { getMovieDetails, formatLanguage } from "@/lib/tmdb"
 import type { Movie } from "@/lib/types"
 import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
+import FilterChip from "@/components/FilterChip"
 import { addToWatchlist } from "@/lib/db"
 
 const TMDB_CACHE_KEY = "fdfs:wrapped:tmdb-cache:v1"
@@ -489,24 +490,13 @@ function ScopeTab({
   onClick: () => void
 }) {
   return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
+    <FilterChip
+      label={label}
+      active={active}
       onClick={onClick}
-      className="t-button-sm"
-      style={{
-        color: active ? "var(--text-inverse)" : "var(--text-emphasis)",
-        background: active ? "var(--text-strong)" : "transparent",
-        border: "none",
-        borderRadius: 999,
-        padding: "8px 18px",
-        cursor: "pointer",
-        transition: "background 0.2s ease, color 0.2s ease",
-      }}
-    >
-      {label}
-    </button>
+      ariaLabel={`Show ${label}`}
+      role="tab"
+    />
   )
 }
 

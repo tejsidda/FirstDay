@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Playfair_Display } from "next/font/google";
 import "./globals.css";
+import NavigateBackListener from "@/components/NavigateBackListener";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,6 +31,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${playfair.variable} antialiased`}
         style={{ background: "var(--background-base)" }}
       >
+        <NavigateBackListener />
         {children}
       </body>
     </html>
