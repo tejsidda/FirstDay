@@ -15,7 +15,7 @@ import StandingOvationInput from "@/components/StandingOvationInput"
 import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
 import FilterChip from "@/components/FilterChip"
-import { MOBILE_TAB_BAR_INSET } from "@/hooks/useIsMobile"
+import { MOBILE_TAB_BAR_INSET, useIsMobile } from "@/hooks/useIsMobile"
 
 const DEFAULT_AMBIENT: [number, number, number] = [45, 38, 28]
 
@@ -72,19 +72,19 @@ function extractAmbientRgb(imageUrl: string): Promise<[number, number, number]> 
 function FilmFrame({
   film,
   isCentered,
-  onClick,
+  onPosterClick,
+  onTitleClick,
 }: {
   film: Movie
   isCentered: boolean
-  onClick: () => void
+  onPosterClick: () => void
+  onTitleClick: () => void
 }) {
   return (
     <div
-      onClick={onClick}
       style={{
         flexShrink: 0,
         width: 280,
-        cursor: "pointer",
         transition: "all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
         transform: isCentered ? "scale(1.15)" : "scale(0.85)",
         opacity: isCentered ? 1 : 0.35,
@@ -103,21 +103,40 @@ function FilmFrame({
           transition: "box-shadow 0.5s ease",
         }}
       >
-        <div style={{ aspectRatio: "2/3", overflow: "hidden", borderRadius: 2 }}>
-          <img
-            src={film.poster}
-            alt={film.title}
-            onError={(e) => {
-              e.currentTarget.src = "/fallback-poster.jpg"
-            }}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              display: "block",
-            }}
-          />
-        </div>
+        <button
+          type="button"
+          aria-label={`Open ${film.title}`}
+          onClick={(e) => {
+            e.stopPropagation()
+            onPosterClick()
+          }}
+          style={{
+            display: "block",
+            width: "100%",
+            padding: 0,
+            border: "none",
+            background: "none",
+            cursor: "pointer",
+            borderRadius: 2,
+          }}
+        >
+          <div style={{ aspectRatio: "2/3", overflow: "hidden", borderRadius: 2 }}>
+            <img
+              src={film.poster}
+              alt=""
+              onError={(e) => {
+                e.currentTarget.src = "/fallback-poster.jpg"
+              }}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+                pointerEvents: "none",
+              }}
+            />
+          </div>
+        </button>
 
         <div
           style={{
@@ -127,8 +146,15 @@ function FilmFrame({
             minHeight: isCentered ? 48 : 36,
           }}
         >
-          <div
+          <button
+            type="button"
             className={isCentered ? "t-title" : "t-caption"}
+            aria-label={`Copy title: ${film.title}`}
+            title="Copy title"
+            onClick={(e) => {
+              e.stopPropagation()
+              onTitleClick()
+            }}
             style={{
               fontStyle: "italic",
               fontFamily: "var(--font-display)",
@@ -136,10 +162,15 @@ function FilmFrame({
                 ? "rgba(255,255,255,0.85)"
                 : "rgba(255,255,255,0.3)",
               transition: "all 0.5s ease",
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "copy",
+              width: "100%",
             }}
           >
             {film.title}
-          </div>
+          </button>
           {isCentered && (
             <div
               className="t-caption"
@@ -264,19 +295,13 @@ export default function WatchlistPage() {
   const [watchedDate, setWatchedDate] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [copyHint, setCopyHint] = useState<string | null>(null)
   const router = useRouter()
   const stripRef = useRef<HTMLDivElement>(null)
   const ambientCacheRef = useRef<Record<string, [number, number, number]>>({})
   const scrollTickingRef = useRef(false)
-  const [isMobile, setIsMobile] = useState(false)
-
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 768px)")
-    const update = () => setIsMobile(media.matches)
-    update()
-    media.addEventListener("change", update)
-    return () => media.removeEventListener("change", update)
-  }, [])
+  const copyHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     let active = true
@@ -332,6 +357,12 @@ export default function WatchlistPage() {
       )
       .filter((i) => i >= 0)
   }, [watchlist, selectedGenre, genreCache])
+
+  const modalBottom = isMobile
+    ? `calc(${MOBILE_TAB_BAR_INSET} + 16px)`
+    : "max(100px, calc(24px + env(safe-area-inset-bottom, 0px)))"
+
+  const navTopPad = isMobile ? 56 : 72
 
   const handleAdd = async (movie: Movie) => {
     const ok = await addToWatchlist(movie)
@@ -401,14 +432,79 @@ export default function WatchlistPage() {
     (direction: -1 | 1) => {
       if (watchlist.length <= 1) return
       setCenteredIndex((prev) => {
-        const next = prev + direction
-        if (next < 0 || next >= watchlist.length) return prev
+        const pool =
+          selectedGenre && pickPoolIndices.length > 0
+            ? pickPoolIndices
+            : watchlist.map((_, i) => i)
+        const pos = pool.indexOf(prev)
+        if (pos < 0) {
+          const fallback = pool[0]
+          syncStripToIndex(fallback, watchlist.length, { setState: false })
+          return fallback
+        }
+        const nextPos = pos + direction
+        if (nextPos < 0 || nextPos >= pool.length) return prev
+        const next = pool[nextPos]
         syncStripToIndex(next, watchlist.length, { setState: false })
         return next
       })
     },
-    [watchlist.length, syncStripToIndex]
+    [watchlist.length, selectedGenre, pickPoolIndices, syncStripToIndex]
   )
+
+  // Keep the centered poster in sync when a genre filter is active
+  useEffect(() => {
+    if (!selectedGenre || pickPoolIndices.length === 0) return
+    if (pickPoolIndices.includes(centeredIndex)) return
+    syncStripToIndex(pickPoolIndices[0], watchlist.length)
+  }, [selectedGenre, pickPoolIndices, centeredIndex, watchlist.length, syncStripToIndex])
+
+  const showCopyHint = useCallback((message: string) => {
+    setCopyHint(message)
+    if (copyHintTimerRef.current) clearTimeout(copyHintTimerRef.current)
+    copyHintTimerRef.current = setTimeout(() => setCopyHint(null), 2000)
+  }, [])
+
+  const copyFilmTitle = useCallback(
+    async (film: Movie) => {
+      try {
+        await navigator.clipboard.writeText(film.title)
+        showCopyHint(`Copied “${film.title}”`)
+        return
+      } catch {
+        /* fallback below */
+      }
+      try {
+        const ta = document.createElement("textarea")
+        ta.value = film.title
+        ta.style.position = "fixed"
+        ta.style.left = "-9999px"
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand("copy")
+        document.body.removeChild(ta)
+        showCopyHint(`Copied “${film.title}”`)
+      } catch {
+        showCopyHint("Couldn’t copy — try again")
+      }
+    },
+    [showCopyHint],
+  )
+
+  const openFilmPage = useCallback(
+    (index: number) => {
+      const film = watchlist[index]
+      if (!film) return
+      router.push(`/movie/${film.id}`)
+    },
+    [watchlist, router],
+  )
+
+  useEffect(() => {
+    return () => {
+      if (copyHintTimerRef.current) clearTimeout(copyHintTimerRef.current)
+    }
+  }, [])
 
   // Keyboard: Left/Right arrows move the strip one film at a time
   useEffect(() => {
@@ -612,6 +708,8 @@ export default function WatchlistPage() {
         height: "100vh",
         overflow: "hidden",
         background: "var(--background-watchlist)",
+        display: watchlist.length > 0 ? "flex" : "block",
+        flexDirection: watchlist.length > 0 ? "column" : undefined,
       }}
     >
       <style>{`
@@ -655,20 +753,29 @@ export default function WatchlistPage() {
           </p>
         </div>
       ) : (
-        <>
-          {/* Genre pick + spin */}
-          <div
+        <div
+          style={{
+            position: "relative",
+            zIndex: 10,
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            paddingTop: navTopPad,
+          }}
+        >
+          {/* Genre filters — fixed row, no overlap with reel */}
+          <section
+            aria-label="Genre filters"
             style={{
-              position: "absolute",
-              top: isMobile ? 72 : 80,
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 30,
+              flexShrink: 0,
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: 12,
+              gap: 10,
               width: "min(640px, calc(100vw - 32px))",
+              margin: "0 auto",
+              padding: "8px 16px 4px",
             }}
           >
             {suggestedGenres.length > 0 && (
@@ -712,44 +819,6 @@ export default function WatchlistPage() {
                 ? "Genres from your recent watches — pick one, then spin the reel."
                 : "Rate a few films and we’ll suggest genres from what you’ve been watching."}
             </p>
-            <button
-              type="button"
-              onClick={handleSpin}
-              disabled={
-                isSpinning ||
-                (selectedGenre != null && pickPoolIndices.length === 0)
-              }
-              className="t-button"
-              style={{
-                color:
-                  isSpinning ||
-                  (selectedGenre != null && pickPoolIndices.length === 0)
-                    ? "rgba(255,255,255,0.35)"
-                    : "var(--background-base)",
-                background:
-                  isSpinning ||
-                  (selectedGenre != null && pickPoolIndices.length === 0)
-                    ? "rgba(255,255,255,0.06)"
-                    : "rgba(255,255,255,0.92)",
-                border: "1px solid rgba(255,255,255,0.14)",
-                borderRadius: 999,
-                padding: "12px 28px",
-                cursor:
-                  isSpinning ||
-                  (selectedGenre != null && pickPoolIndices.length === 0)
-                    ? "default"
-                    : "pointer",
-                backdropFilter: "blur(12px)",
-                WebkitBackdropFilter: "blur(12px)",
-                transition: "all 0.3s ease",
-              }}
-            >
-              {isSpinning
-                ? "Finding your film…"
-                : selectedGenre
-                  ? `Pick a ${selectedGenre} film`
-                  : "Pick something for tonight"}
-            </button>
             {selectedGenre != null && pickPoolIndices.length === 0 && (
               <p
                 className="t-caption"
@@ -758,17 +827,18 @@ export default function WatchlistPage() {
                 Nothing on your watchlist matches {selectedGenre} yet.
               </p>
             )}
-          </div>
+          </section>
 
-          {/* The film strip — vertically centered */}
-          <div
+          {/* Film reel — fills space between genre bar and action dock */}
+          <section
+            aria-label="Watchlist reel"
             style={{
-              position: "absolute",
-              top: "50%",
-              left: 0,
-              right: 0,
-              transform: "translateY(-50%)",
-              zIndex: 10,
+              flex: 1,
+              minHeight: 0,
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
             }}
           >
             <SprocketRow />
@@ -785,8 +855,8 @@ export default function WatchlistPage() {
                 overflowY: "hidden",
                 paddingLeft: `calc(50vw - ${CARD_WIDTH / 2}px)`,
                 paddingRight: `calc(50vw - ${CARD_WIDTH / 2}px)`,
-                paddingTop: 64,
-                paddingBottom: 100,
+                paddingTop: 24,
+                paddingBottom: 32,
                 scrollBehavior: isSpinning ? "auto" : "smooth",
                 scrollSnapType: isSpinning ? "none" : "x mandatory",
                 scrollbarWidth: "none",
@@ -798,14 +868,14 @@ export default function WatchlistPage() {
                   <FilmFrame
                     film={film}
                     isCentered={i === centeredIndex}
-                    onClick={() => router.push(`/movie/${film.id}`)}
+                    onPosterClick={() => openFilmPage(i)}
+                    onTitleClick={() => copyFilmTitle(film)}
                   />
                 </div>
               ))}
             </div>
 
             <SprocketRow />
-          </div>
 
           {/* Left / right strip navigation */}
           {watchlist.length > 1 && (
@@ -813,42 +883,64 @@ export default function WatchlistPage() {
               <button
                 type="button"
                 aria-label="Previous film"
-                disabled={centeredIndex <= 0}
+                disabled={
+                  selectedGenre && pickPoolIndices.length > 0
+                    ? pickPoolIndices.indexOf(centeredIndex) <= 0
+                    : centeredIndex <= 0
+                }
                 onClick={() => scrollStrip(-1)}
                 style={{
                   position: "absolute",
-                  top: "50%",
+                  top: 0,
+                  bottom: 0,
                   left: 16,
-                  transform: "translateY(-50%)",
+                  margin: "auto 0",
                   zIndex: 25,
                   width: 48,
                   height: 48,
                   borderRadius: "50%",
                   background:
-                    centeredIndex <= 0
+                    (selectedGenre && pickPoolIndices.length > 0
+                      ? pickPoolIndices.indexOf(centeredIndex) <= 0
+                      : centeredIndex <= 0)
                       ? "rgba(255,255,255,0.02)"
                       : "rgba(255,255,255,0.06)",
                   backdropFilter: "blur(8px)",
                   WebkitBackdropFilter: "blur(8px)",
                   border: "1px solid rgba(255,255,255,0.08)",
                   color:
-                    centeredIndex <= 0
+                    (selectedGenre && pickPoolIndices.length > 0
+                      ? pickPoolIndices.indexOf(centeredIndex) <= 0
+                      : centeredIndex <= 0)
                       ? "rgba(255,255,255,0.15)"
                       : "rgba(255,255,255,0.5)",
-                  cursor: centeredIndex <= 0 ? "default" : "pointer",
+                  cursor:
+                    (selectedGenre && pickPoolIndices.length > 0
+                      ? pickPoolIndices.indexOf(centeredIndex) <= 0
+                      : centeredIndex <= 0)
+                      ? "default"
+                      : "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   transition: "all 0.2s ease",
                 }}
                 onMouseEnter={(e) => {
-                  if (centeredIndex <= 0) return
+                  const atStart =
+                    selectedGenre && pickPoolIndices.length > 0
+                      ? pickPoolIndices.indexOf(centeredIndex) <= 0
+                      : centeredIndex <= 0
+                  if (atStart) return
                   e.currentTarget.style.background = "rgba(255,255,255,0.12)"
                   e.currentTarget.style.color = "rgba(255,255,255,0.9)"
                   e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"
                 }}
                 onMouseLeave={(e) => {
-                  if (centeredIndex <= 0) return
+                  const atStart =
+                    selectedGenre && pickPoolIndices.length > 0
+                      ? pickPoolIndices.indexOf(centeredIndex) <= 0
+                      : centeredIndex <= 0
+                  if (atStart) return
                   e.currentTarget.style.background = "rgba(255,255,255,0.06)"
                   e.currentTarget.style.color = "rgba(255,255,255,0.5)"
                   e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"
@@ -870,30 +962,45 @@ export default function WatchlistPage() {
               <button
                 type="button"
                 aria-label="Next film"
-                disabled={centeredIndex >= watchlist.length - 1}
+                disabled={
+                  selectedGenre && pickPoolIndices.length > 0
+                    ? pickPoolIndices.indexOf(centeredIndex) >=
+                      pickPoolIndices.length - 1
+                    : centeredIndex >= watchlist.length - 1
+                }
                 onClick={() => scrollStrip(1)}
                 style={{
                   position: "absolute",
-                  top: "50%",
+                  top: 0,
+                  bottom: 0,
                   right: 16,
-                  transform: "translateY(-50%)",
+                  margin: "auto 0",
                   zIndex: 25,
                   width: 48,
                   height: 48,
                   borderRadius: "50%",
                   background:
-                    centeredIndex >= watchlist.length - 1
+                    (selectedGenre && pickPoolIndices.length > 0
+                      ? pickPoolIndices.indexOf(centeredIndex) >=
+                        pickPoolIndices.length - 1
+                      : centeredIndex >= watchlist.length - 1)
                       ? "rgba(255,255,255,0.02)"
                       : "rgba(255,255,255,0.06)",
                   backdropFilter: "blur(8px)",
                   WebkitBackdropFilter: "blur(8px)",
                   border: "1px solid rgba(255,255,255,0.08)",
                   color:
-                    centeredIndex >= watchlist.length - 1
+                    (selectedGenre && pickPoolIndices.length > 0
+                      ? pickPoolIndices.indexOf(centeredIndex) >=
+                        pickPoolIndices.length - 1
+                      : centeredIndex >= watchlist.length - 1)
                       ? "rgba(255,255,255,0.15)"
                       : "rgba(255,255,255,0.5)",
                   cursor:
-                    centeredIndex >= watchlist.length - 1
+                    (selectedGenre && pickPoolIndices.length > 0
+                      ? pickPoolIndices.indexOf(centeredIndex) >=
+                        pickPoolIndices.length - 1
+                      : centeredIndex >= watchlist.length - 1)
                       ? "default"
                       : "pointer",
                   display: "flex",
@@ -902,13 +1009,23 @@ export default function WatchlistPage() {
                   transition: "all 0.2s ease",
                 }}
                 onMouseEnter={(e) => {
-                  if (centeredIndex >= watchlist.length - 1) return
+                  const atEnd =
+                    selectedGenre && pickPoolIndices.length > 0
+                      ? pickPoolIndices.indexOf(centeredIndex) >=
+                        pickPoolIndices.length - 1
+                      : centeredIndex >= watchlist.length - 1
+                  if (atEnd) return
                   e.currentTarget.style.background = "rgba(255,255,255,0.12)"
                   e.currentTarget.style.color = "rgba(255,255,255,0.9)"
                   e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"
                 }}
                 onMouseLeave={(e) => {
-                  if (centeredIndex >= watchlist.length - 1) return
+                  const atEnd =
+                    selectedGenre && pickPoolIndices.length > 0
+                      ? pickPoolIndices.indexOf(centeredIndex) >=
+                        pickPoolIndices.length - 1
+                      : centeredIndex >= watchlist.length - 1
+                  if (atEnd) return
                   e.currentTarget.style.background = "rgba(255,255,255,0.06)"
                   e.currentTarget.style.color = "rgba(255,255,255,0.5)"
                   e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"
@@ -930,53 +1047,96 @@ export default function WatchlistPage() {
             </>
           )}
 
-          {/* Center frame indicator */}
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: CARD_WIDTH + 40,
-              height: 500,
-              border: "1px solid rgba(255,255,255,0.035)",
-              borderRadius: 8,
-              pointerEvents: "none",
-              zIndex: 5,
-            }}
-          />
-
-          {/* Centered film actions: mark watched + remove */}
-          {watchlist[centeredIndex] && (
+            {/* Center frame indicator */}
             <div
               style={{
                 position: "absolute",
-                bottom: isMobile
-                  ? `calc(24px + ${MOBILE_TAB_BAR_INSET})`
-                  : 50,
-                left: "50%",
-                transform: "translateX(-50%)",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                pointerEvents: "none",
+                zIndex: 5,
+              }}
+            >
+              <div
+                style={{
+                  width: CARD_WIDTH + 40,
+                  height: "min(480px, 72%)",
+                  border: "1px solid rgba(255,255,255,0.035)",
+                  borderRadius: 8,
+                }}
+              />
+            </div>
+          </section>
+
+          {/* Action dock — below reel, never on top of posters */}
+          {watchlist[centeredIndex] && (
+            <section
+              aria-label="Film actions"
+              style={{
+                flexShrink: 0,
                 textAlign: "center",
-                zIndex: 15,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 16,
+                gap: 12,
+                padding: isMobile ? "8px 16px 4px" : "12px 16px 20px",
               }}
             >
+              <button
+                type="button"
+                onClick={handleSpin}
+                disabled={
+                  isSpinning ||
+                  (selectedGenre != null && pickPoolIndices.length === 0)
+                }
+                className="t-button"
+                style={{
+                  color:
+                    isSpinning ||
+                    (selectedGenre != null && pickPoolIndices.length === 0)
+                      ? "rgba(255,255,255,0.35)"
+                      : "var(--background-base)",
+                  background:
+                    isSpinning ||
+                    (selectedGenre != null && pickPoolIndices.length === 0)
+                      ? "rgba(255,255,255,0.06)"
+                      : "rgba(255,255,255,0.92)",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  borderRadius: 999,
+                  padding: "12px 28px",
+                  cursor:
+                    isSpinning ||
+                    (selectedGenre != null && pickPoolIndices.length === 0)
+                      ? "default"
+                      : "pointer",
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                {isSpinning
+                  ? "Finding your film…"
+                  : selectedGenre
+                    ? `Pick a ${selectedGenre} film`
+                    : "Pick something for tonight"}
+              </button>
+
               <div className="t-label" style={{ color: "rgba(255,255,255,0.2)" }}>
                 {centeredIndex + 1} of {watchlist.length}
               </div>
-              {!showRating && watchlist[centeredIndex] && (
-                <div
+              {!showRating && !showReviewStep && (
+                <p
                   className="t-caption"
-                  style={{ color: "rgba(255,255,255,0.38)", marginTop: 4 }}
+                  style={{
+                    margin: 0,
+                    color: "rgba(255,255,255,0.28)",
+                    maxWidth: 320,
+                  }}
                 >
-                  {formatLanguage(watchlist[centeredIndex].language)}
-                  {watchlist[centeredIndex].year != null
-                    ? ` · ${watchlist[centeredIndex].year}`
-                    : ""}
-                </div>
+                  Tap title to copy · tap poster to open
+                </p>
               )}
 
               {!showRating && !actionLoading && (
@@ -1106,7 +1266,7 @@ export default function WatchlistPage() {
                     style={{
                       position: "fixed",
                       left: "50%",
-                      bottom: "max(100px, calc(24px + env(safe-area-inset-bottom, 0px)))",
+                      bottom: modalBottom,
                       transform: "translateX(-50%)",
                       zIndex: 36,
                       width: "min(440px, calc(100vw - 32px))",
@@ -1191,7 +1351,7 @@ export default function WatchlistPage() {
                     style={{
                       position: "fixed",
                       left: "50%",
-                      bottom: "max(100px, calc(24px + env(safe-area-inset-bottom, 0px)))",
+                      bottom: modalBottom,
                       transform: "translateX(-50%)",
                       zIndex: 36,
                       width: "min(520px, calc(100vw - 32px))",
@@ -1367,6 +1527,18 @@ export default function WatchlistPage() {
                 </p>
               )}
 
+              {copyHint && !actionLoading && (
+                <p
+                  className="t-caption"
+                  style={{
+                    color: "rgba(180,220,180,0.85)",
+                    maxWidth: 360,
+                  }}
+                >
+                  {copyHint}
+                </p>
+              )}
+
               {actionError && !actionLoading && (
                 <p
                   className="t-caption"
@@ -1378,9 +1550,9 @@ export default function WatchlistPage() {
                   {actionError}
                 </p>
               )}
-            </div>
+            </section>
           )}
-        </>
+        </div>
       )}
 
       {searchOpen && (

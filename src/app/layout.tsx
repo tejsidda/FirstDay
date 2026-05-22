@@ -1,13 +1,8 @@
 import type { Metadata, Viewport } from "next";
-<<<<<<< HEAD
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import PullToRefresh from "@/components/PullToRefresh";
-=======
 import { Geist, Playfair_Display } from "next/font/google";
 import "./globals.css";
+import PullToRefresh from "@/components/PullToRefresh";
 import NavigateBackListener from "@/components/NavigateBackListener";
->>>>>>> 5169cdb6fe86719acb4631b20c13950d4c5f1148
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,11 +38,8 @@ export default function RootLayout({
         className={`${geistSans.variable} ${playfair.variable} antialiased`}
         style={{ background: "var(--background-base)" }}
       >
-<<<<<<< HEAD
         <PullToRefresh />
-=======
         <NavigateBackListener />
->>>>>>> 5169cdb6fe86719acb4631b20c13950d4c5f1148
         {children}
       </body>
     </html>

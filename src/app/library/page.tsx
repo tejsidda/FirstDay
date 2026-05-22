@@ -1,15 +1,9 @@
 "use client"
 
-<<<<<<< HEAD
-import Link from "next/link"
-import { useEffect, useMemo, useRef, useState } from "react"
-import { getWatched } from "@/lib/db"
-import { PULL_REFRESH_EVENT } from "@/lib/pullToRefresh"
-=======
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getWatched, addToWatchlist } from "@/lib/db"
->>>>>>> 5169cdb6fe86719acb4631b20c13950d4c5f1148
+import { PULL_REFRESH_EVENT } from "@/lib/pullToRefresh"
 import type { Movie } from "@/lib/types"
 import { formatLanguage } from "@/lib/tmdb"
 import RatingDisplay from "@/components/RatingDisplay"
@@ -132,19 +126,13 @@ export default function LibraryPage() {
       setWatched(films)
       setLoading(false)
     }
-<<<<<<< HEAD
-
-    loadWatched()
+    load()
 
     const onPullRefresh = (e: Event) => {
       e.preventDefault()
-      void loadWatched()
+      void load()
     }
     window.addEventListener(PULL_REFRESH_EVENT, onPullRefresh)
-
-=======
-    load()
->>>>>>> 5169cdb6fe86719acb4631b20c13950d4c5f1148
     return () => {
       active = false
       window.removeEventListener(PULL_REFRESH_EVENT, onPullRefresh)

@@ -5,11 +5,6 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
-<<<<<<< HEAD
-import { getWatchlist, getWatched, addToWatchlist, markAsWatched, removeFromWatchlist } from "@/lib/db"
-import { PULL_REFRESH_EVENT } from "@/lib/pullToRefresh"
-import { Movie } from "@/lib/types"
-=======
 import {
   getWatchlist,
   getWatched,
@@ -17,11 +12,11 @@ import {
   markRecommendationShown,
   getUnshownRecommendations,
 } from "@/lib/db"
+import { PULL_REFRESH_EVENT } from "@/lib/pullToRefresh"
 import { getRecommendations, refreshRecommendations } from "@/lib/recommend"
 import { Movie, type Recommendation } from "@/lib/types"
 import { formatLanguage } from "@/lib/tmdb"
 import RatingDisplay from "@/components/RatingDisplay"
->>>>>>> 5169cdb6fe86719acb4631b20c13950d4c5f1148
 
 const HERO_ROTATION_MS = 14000
 const TYPING_INTERVAL_MS = 50
@@ -195,16 +190,9 @@ export default function HomeContent() {
   useEffect(() => {
     async function loadData() {
       setLoading(true)
-<<<<<<< HEAD
-      const [w, r] = await Promise.all([getWatchlist(), getWatched()])
-      setWatchlist(w)
-      setWatched(r)
-      if (w.length > 0) setCurrentMovieId((prev) => prev || w[0].id)
-=======
       const [wl, w] = await Promise.all([getWatchlist(), getWatched()])
       setWatchlist(wl)
       setWatched(w)
->>>>>>> 5169cdb6fe86719acb4631b20c13950d4c5f1148
       setLoading(false)
     }
     loadData()
