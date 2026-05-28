@@ -64,8 +64,8 @@ export function posterURL(path: string, size = "w500") {
   return `${IMG}/${size}${path}`
 }
 
-export function backdropURL(path: string) {
-  return `${IMG}/w1280${path}`
+export function backdropURL(path: string, size = "w780") {
+  return `${IMG}/${size}${path}`
 }
 
 function tmdbToMovie(item: any): Movie {
@@ -147,7 +147,7 @@ export async function getMovieCredits(tmdbId: string) {
   }
 }
 
-export async function getMovieImages(tmdbId: string) {
+export async function getMovieImages(tmdbId: string): Promise<string[]> {
   const res = await fetch(
     `${BASE}/movie/${tmdbId}/images`,
     {
@@ -158,14 +158,9 @@ export async function getMovieImages(tmdbId: string) {
     }
   )
   const data = await res.json()
-  return {
-    backdrops: (data.backdrops || [])
-      .slice(0, 4)
-      .map((img: any) => `${IMG}/w1280${img.file_path}`),
-    posters: (data.posters || [])
-      .slice(0, 2)
-      .map((img: any) => `${IMG}/w500${img.file_path}`),
-  }
+  return (data.backdrops || [])
+    .slice(0, 3)
+    .map((img: any) => backdropURL(img.file_path))
 }
 
 export async function getPersonFilmography(personName: string): Promise<{ id: number; title: string; year: number }[]> {
