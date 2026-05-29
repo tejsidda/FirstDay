@@ -7,7 +7,6 @@ import { PULL_REFRESH_EVENT } from "@/lib/pullToRefresh"
 import type { Movie } from "@/lib/types"
 import { formatLanguage } from "@/lib/tmdb"
 import RatingDisplay from "@/components/RatingDisplay"
-import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
 import FilterChip from "@/components/FilterChip"
 
@@ -110,6 +109,12 @@ export default function LibraryPage() {
   const router = useRouter()
 
   useEffect(() => {
+    const handler = () => setSearchOpen(true)
+    window.addEventListener("fdfs:open-search", handler)
+    return () => window.removeEventListener("fdfs:open-search", handler)
+  }, [])
+
+  useEffect(() => {
     const media = window.matchMedia("(max-width: 768px)")
     const update = () => setIsMobile(media.matches)
     update()
@@ -194,7 +199,6 @@ export default function LibraryPage() {
       className="min-h-screen page-with-mobile-tabs"
       style={{ background: "var(--background-library)" }}
     >
-      <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
 
       {/* Ambient gradient — scoped to top of page */}
       <div

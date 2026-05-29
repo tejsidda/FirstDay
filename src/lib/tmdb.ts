@@ -1,6 +1,8 @@
 import { Movie } from "./types"
 
-const TOKEN = process.env.NEXT_PUBLIC_TMDB_TOKEN
+// Server components get TMDB_TOKEN (secret). Client fallback uses NEXT_PUBLIC_ for
+// on-demand calls like getPersonFilmography triggered by user interaction.
+const TOKEN = process.env.TMDB_TOKEN ?? process.env.NEXT_PUBLIC_TMDB_TOKEN
 
 const BASE = "https://api.themoviedb.org/3"
 const IMG = "https://image.tmdb.org/t/p"
@@ -86,27 +88,13 @@ function tmdbToMovie(item: any): Movie {
 }
 
 export async function searchMovies(query: string, year?: number): Promise<Movie[]> {
-  let url = `${BASE}/search/movie?query=${encodeURIComponent(query)}&language=en-US&page=1`
+  // Routes through /api/tmdb/search so the TMDB token never reaches the browser
+  let url = `/api/tmdb/search?q=${encodeURIComponent(query)}`
   if (year) url += `&year=${year}`
-
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${TOKEN}`,
-      "Content-Type": "application/json",
-    },
-  })
-  const data = await res.json()
-
-  const res2 = await fetch(url.replace("page=1", "page=2"), {
-    headers: {
-      Authorization: `Bearer ${TOKEN}`,
-      "Content-Type": "application/json",
-    },
-  })
-  const data2 = await res2.json()
-
-  const allResults = [...(data.results || []), ...(data2.results || [])]
-  return allResults.map(tmdbToMovie)
+  const res = await fetch(url)
+  if (!res.ok) return []
+  const results = await res.json()
+  return Array.isArray(results) ? results.map(tmdbToMovie) : []
 }
 
 export async function getMovieByName(name: string): Promise<Movie | null> {
@@ -115,52 +103,36 @@ export async function getMovieByName(name: string): Promise<Movie | null> {
 }
 
 export async function getMovieDetails(id: string) {
-    const res = await fetch(
-      `${BASE}/movie/${id}?language=en-US`,
-      {
-        headers: {
-          Authorization: `Bearer ${TOKEN}`,
-          "Content-Type": "application/json",
-        },
-      }
-    )
-    return await res.json()
-  }
+  const res = await fetch(`${BASE}/movie/${id}?language=en-US`, {
+    headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
+    next: { revalidate: 3600 },
+  })
+  if (!res.ok) return null
+  return res.json()
+}
 
 export async function getMovieCredits(tmdbId: string) {
-  const res = await fetch(
-    `${BASE}/movie/${tmdbId}/credits?language=en-US`,
-    {
-      headers: {
-        Authorization: `Bearer ${TOKEN}`,
-        "Content-Type": "application/json",
-      },
-    }
-  )
+  const res = await fetch(`${BASE}/movie/${tmdbId}/credits?language=en-US`, {
+    headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
+    next: { revalidate: 3600 },
+  })
+  if (!res.ok) return { director: "Unknown", cast: [] }
   const data = await res.json()
-  const director = (data.crew || []).find(
-    (person: any) => person.job === "Director"
-  )
+  const director = (data.crew || []).find((p: any) => p.job === "Director")
   return {
     director: director ? director.name : "Unknown",
-    cast: (data.cast || []).slice(0, 5).map((person: any) => person.name),
+    cast: (data.cast || []).slice(0, 20).map((p: any) => p.name),
   }
 }
 
 export async function getMovieImages(tmdbId: string): Promise<string[]> {
-  const res = await fetch(
-    `${BASE}/movie/${tmdbId}/images`,
-    {
-      headers: {
-        Authorization: `Bearer ${TOKEN}`,
-        "Content-Type": "application/json",
-      },
-    }
-  )
+  const res = await fetch(`${BASE}/movie/${tmdbId}/images`, {
+    headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
+    next: { revalidate: 3600 },
+  })
+  if (!res.ok) return []
   const data = await res.json()
-  return (data.backdrops || [])
-    .slice(0, 3)
-    .map((img: any) => backdropURL(img.file_path))
+  return (data.backdrops || []).slice(0, 3).map((img: any) => backdropURL(img.file_path))
 }
 
 export async function getPersonFilmography(personName: string): Promise<{ id: number; title: string; year: number }[]> {
@@ -213,15 +185,11 @@ export async function getPersonFilmography(personName: string): Promise<{ id: nu
 }
 
 export async function getMovieKeywords(tmdbId: string): Promise<string[]> {
-  const res = await fetch(
-    `${BASE}/movie/${tmdbId}/keywords`,
-    {
-      headers: {
-        Authorization: `Bearer ${TOKEN}`,
-        "Content-Type": "application/json",
-      },
-    }
-  )
+  const res = await fetch(`${BASE}/movie/${tmdbId}/keywords`, {
+    headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
+    next: { revalidate: 3600 },
+  })
+  if (!res.ok) return []
   const data = await res.json()
   return (data.keywords || []).map((k: any) => k.name)
 }

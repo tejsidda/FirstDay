@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react"
 import { getWatched } from "@/lib/db"
 import { getMovieDetails, formatLanguage } from "@/lib/tmdb"
 import type { Movie } from "@/lib/types"
-import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
 import FilterChip from "@/components/FilterChip"
 import { addToWatchlist } from "@/lib/db"
@@ -78,6 +77,12 @@ export default function WrappedPage() {
   const isMobile = useIsMobile()
   const [searchOpen, setSearchOpen] = useState(false)
   const [scope, setScope] = useState<Scope>("all")
+
+  useEffect(() => {
+    const handler = () => setSearchOpen(true)
+    window.addEventListener("fdfs:open-search", handler)
+    return () => window.removeEventListener("fdfs:open-search", handler)
+  }, [])
   const [tmdbCache, setTmdbCache] = useState<CacheMap>({})
   const [tmdbProgress, setTmdbProgress] = useState<{
     done: number
@@ -187,7 +192,6 @@ export default function WrappedPage() {
         className="min-h-screen page-with-mobile-tabs"
         style={{ background: "var(--background-raised)" }}
       >
-        <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
         <div
           style={{
             paddingTop: 140,
@@ -230,7 +234,6 @@ export default function WrappedPage() {
       className="min-h-screen page-with-mobile-tabs"
       style={{ background: "var(--background-raised)" }}
     >
-      <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
 
       {/* ── Masthead ── */}
       <header

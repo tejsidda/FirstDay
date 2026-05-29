@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState, type CSSProperties } from "react"
+import { APPLAUSE_HIGH_HINT, APPLAUSE_LOW_HINT, getApplauseLabel } from "@/lib/applause"
 
 type Props = {
   value: number | null
@@ -8,17 +9,6 @@ type Props = {
 }
 
 const NUM_FIGURES = 12
-
-function getMoodText(rating: number | null): string {
-  if (rating == null) return "How much applause?"
-  if (rating <= 2) return "Walked out early"
-  if (rating <= 4) return "Polite silence"
-  if (rating <= 6) return "Scattered applause"
-  if (rating <= 8) return "Solid applause"
-  if (rating < 9.5) return "Roaring approval"
-  if (rating < 10) return "On their feet"
-  return "A standing ovation"
-}
 
 /** Figure i stands when rating crosses its threshold (1 → 10 left to right) */
 function isStanding(index: number, rating: number): boolean {
@@ -163,7 +153,7 @@ export default function StandingOvationInput({ value, onChange }: Props) {
     commit(r)
   }
 
-  const mood = getMoodText(internal)
+  const mood = getApplauseLabel(internal)
   const hero = heroStyle(internal)
 
   return (
@@ -232,12 +222,16 @@ export default function StandingOvationInput({ value, onChange }: Props) {
           className="ovation-slider h-11 w-full cursor-pointer"
           aria-label="Drag to set rating"
         />
-        <p
-          className="t-label mt-1 text-center"
+        <div
+          className="t-caption mt-1 flex justify-between gap-3 px-0.5"
           style={{ color: "var(--text-caption)" }}
         >
-          Drag — more standing, more love
-        </p>
+          <span>1 · {APPLAUSE_LOW_HINT}</span>
+          <span className="text-center" style={{ color: "var(--text-hint)" }}>
+            Higher = louder applause
+          </span>
+          <span>10 · {APPLAUSE_HIGH_HINT}</span>
+        </div>
       </div>
 
     </div>

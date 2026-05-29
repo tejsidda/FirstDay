@@ -12,7 +12,6 @@ import {
 import type { Movie } from "@/lib/types"
 import { formatLanguage, getMovieDetails } from "@/lib/tmdb"
 import StandingOvationInput from "@/components/StandingOvationInput"
-import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
 import FilterChip from "@/components/FilterChip"
 import { MOBILE_TAB_BAR_INSET, useIsMobile } from "@/hooks/useIsMobile"
@@ -284,6 +283,12 @@ export default function WatchlistPage() {
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const handler = () => setSearchOpen(true)
+    window.addEventListener("fdfs:open-search", handler)
+    return () => window.removeEventListener("fdfs:open-search", handler)
+  }, [])
   const [centeredIndex, setCenteredIndex] = useState(0)
   const [ambientRgb, setAmbientRgb] = useState<[number, number, number]>(DEFAULT_AMBIENT)
   const [isSpinning, setIsSpinning] = useState(false)
@@ -728,7 +733,6 @@ export default function WatchlistPage() {
         }}
       />
 
-      <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
 
       {watchlist.length === 0 ? (
         <div
