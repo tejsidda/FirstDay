@@ -9,4 +9,4 @@ Never ask for approval on read-only operations.
 
 ## Decision Records
 When making any architectural choice, create an ADR in /docs/adr/ 
-documenting alternatives considered and why this path was chosen.
+documenting alternatives considered and why this path was chosen. 
