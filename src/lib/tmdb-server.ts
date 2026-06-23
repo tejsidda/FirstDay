@@ -19,7 +19,6 @@ function authHeaders(): HeadersInit {
 
 const CACHE_1H = { next: { revalidate: 3600 } } as const
 
-<<<<<<< HEAD
 function proxyTmdbImage(url: string) {
   return `/api/poster-proxy?url=${encodeURIComponent(url)}`
 }
@@ -30,14 +29,6 @@ export function posterURL(path: string, size = "w500") {
 
 export function backdropURL(path: string, size = "w1280") {
   return proxyTmdbImage(`${IMG}/${size}${path}`)
-=======
-export function posterURL(path: string, size = "w500") {
-  return `${IMG}/${size}${path}`
-}
-
-export function backdropURL(path: string, size = "w1280") {
-  return `${IMG}/${size}${path}`
->>>>>>> ddc7a636afc9949eabd4692d96cec849a7a31fbb
 }
 
 export async function fetchMovieDetails(id: string) {
@@ -73,7 +64,6 @@ export async function fetchMovieKeywords(tmdbId: string): Promise<string[]> {
   return (data.keywords || []).map((k: { name: string }) => k.name)
 }
 
-<<<<<<< HEAD
 export async function fetchMovieImages(tmdbId: string): Promise<string[]> {
   const res = await fetch(`${BASE}/movie/${tmdbId}/images`, {
     headers: authHeaders(),
@@ -84,7 +74,8 @@ export async function fetchMovieImages(tmdbId: string): Promise<string[]> {
   return (data.backdrops || [])
     .slice(0, 3)
     .map((img: { file_path: string }) => backdropURL(img.file_path))
-=======
+}
+
 const MIN_BACKDROP_WIDTH = 1280
 const MIN_BACKDROP_HEIGHT = 720
 const RELAXED_BACKDROP_WIDTH = 1000
@@ -189,7 +180,6 @@ export async function getMovieBackdrops(
     return { urls: [backdropURL(fallback.backdropPath)], fromPoster: false }
   }
   return { urls: [], fromPoster: false }
->>>>>>> ddc7a636afc9949eabd4692d96cec849a7a31fbb
 }
 
 export async function fetchPersonFilmography(personName: string) {

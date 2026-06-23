@@ -108,15 +108,10 @@ export async function getMovieByName(name: string): Promise<Movie | null> {
   return results.length > 0 ? results[0] : null
 }
 
-<<<<<<< HEAD
-=======
-/** Cached TMDB movie details via server proxy — no API key in the browser */
->>>>>>> ddc7a636afc9949eabd4692d96cec849a7a31fbb
 export async function getMovieDetails(id: string): Promise<TmdbMovieDetails | null> {
   const res = await fetch(`/api/tmdb/movie/${id}`)
   if (!res.ok) return null
   return res.json()
-<<<<<<< HEAD
 }
 
 export async function getMovieCredits(tmdbId: string) {
@@ -127,19 +122,10 @@ export async function getMovieCredits(tmdbId: string) {
 
 export async function getMovieImages(tmdbId: string): Promise<string[]> {
   const res = await fetch(`/api/tmdb/movie/${tmdbId}/images`)
-=======
-}
-
-export async function getPersonFilmography(
-  personName: string
-): Promise<{ id: number; title: string; year: number }[]> {
-  const res = await fetch(`/api/tmdb/person?name=${encodeURIComponent(personName)}`)
->>>>>>> ddc7a636afc9949eabd4692d96cec849a7a31fbb
   if (!res.ok) return []
   const data = await res.json()
   return Array.isArray(data) ? data : []
 }
-<<<<<<< HEAD
 
 export async function getPersonFilmography(
   personName: string
@@ -156,5 +142,3 @@ export async function getMovieKeywords(tmdbId: string): Promise<string[]> {
   const data = await res.json()
   return Array.isArray(data) ? data : []
 }
-=======
->>>>>>> ddc7a636afc9949eabd4692d96cec849a7a31fbb
