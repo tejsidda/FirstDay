@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY
-const TMDB_TOKEN = process.env.TMDB_TOKEN ?? process.env.NEXT_PUBLIC_TMDB_TOKEN
+const TMDB_TOKEN = process.env.TMDB_TOKEN
 const TMDB_BASE = "https://api.themoviedb.org/3"
 
 const LANG_MAP: Record<string, string> = {

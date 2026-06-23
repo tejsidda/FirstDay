@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const TOKEN = process.env.TMDB_TOKEN ?? process.env.NEXT_PUBLIC_TMDB_TOKEN
+const TOKEN = process.env.TMDB_TOKEN
 const BASE = "https://api.themoviedb.org/3"
 
 export async function GET(req: NextRequest) {
@@ -9,6 +9,10 @@ export async function GET(req: NextRequest) {
   const year = searchParams.get("year") || ""
 
   if (query.trim().length < 2) return NextResponse.json([])
+
+  if (!TOKEN) {
+    return NextResponse.json({ error: "TMDB not configured" }, { status: 503 })
+  }
 
   const buildUrl = (page: number) => {
     let url = `${BASE}/search/movie?query=${encodeURIComponent(query)}&language=en-US&page=${page}`

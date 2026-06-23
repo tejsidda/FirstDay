@@ -57,6 +57,7 @@ type Props = {
   movie: TMDBMovie
   credits: { director: string; cast: string[] }
   backdrops: string[]
+  backdropFromPoster?: boolean
   keywords: string[]
   serverPosterSrc: string
 }
@@ -111,6 +112,7 @@ function SectionShell({
   isMobile,
   revealed,
   backdropSrc,
+  posterFallback = false,
   sectionColor,
   children,
 }: {
@@ -120,11 +122,13 @@ function SectionShell({
   isMobile: boolean
   revealed: boolean
   backdropSrc?: string
+  posterFallback?: boolean
   sectionColor: string | null
   children: ReactNode
 }) {
   const motion = revealed ? "scale(1)" : "scale(1.06)"
   const contentMotion = revealed ? "translateY(0)" : "translateY(22px)"
+  const useCover = isMobile || posterFallback
 
   return (
     <section data-section={idx} style={{ position: "relative", minHeight: minH, zIndex: 1 }}>
@@ -134,13 +138,23 @@ function SectionShell({
             position: "absolute",
             inset: 0,
             backgroundImage: `url(${backdropSrc})`,
-            backgroundSize: isMobile ? "cover" : "52% auto",
-            backgroundPosition: isMobile ? "center 20%" : textSide === "left" ? "right center" : "left center",
+            backgroundSize: useCover ? "cover" : "52% auto",
+            backgroundPosition: useCover
+              ? "center 30%"
+              : textSide === "left"
+                ? "right center"
+                : "left center",
             backgroundRepeat: "no-repeat",
-            filter: isMobile ? "brightness(0.42) saturate(1.1)" : "brightness(0.78) saturate(1.2)",
+            filter: posterFallback
+              ? "blur(14px) brightness(0.38) saturate(1.15)"
+              : isMobile
+                ? "brightness(0.42) saturate(1.1)"
+                : "brightness(0.78) saturate(1.2)",
+            transform: posterFallback ? "scale(1.1)" : motion,
             opacity: revealed ? 1 : 0,
-            transform: motion,
-            transition: "opacity 1s ease, transform 1.2s cubic-bezier(0.25,0.46,0.45,0.94)",
+            transition: posterFallback
+              ? "opacity 1s ease, transform 1.2s cubic-bezier(0.25,0.46,0.45,0.94)"
+              : "opacity 1s ease, transform 1.2s cubic-bezier(0.25,0.46,0.45,0.94)",
           }}
         />
       )}
@@ -322,6 +336,7 @@ export default function MovieDetailClient({
   movie,
   credits,
   backdrops,
+  backdropFromPoster = false,
   keywords,
   serverPosterSrc,
 }: Props) {
@@ -1016,6 +1031,7 @@ export default function MovieDetailClient({
     isMobile,
     revealed,
     backdropSrc: bd(idx),
+    posterFallback: backdropFromPoster,
     sectionColor: sc(idx),
   })
 

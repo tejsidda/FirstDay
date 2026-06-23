@@ -1,4 +1,10 @@
-import { getMovieDetails, getMovieCredits, getMovieImages, getMovieKeywords, posterURL, backdropURL } from "@/lib/tmdb"
+import { posterURL } from "@/lib/tmdb"
+import {
+  fetchMovieDetails,
+  fetchMovieCredits,
+  fetchMovieKeywords,
+  getMovieBackdrops,
+} from "@/lib/tmdb-server"
 import MovieDetailClient from "./MovieDetailClient"
 
 export default async function MovieDetailPage({
@@ -9,11 +15,10 @@ export default async function MovieDetailPage({
   const { id: tmdbId } = await params
 
   // All TMDB fetches run server-side — token never reaches the browser, responses cached 1h
-  const [movie, credits, backdrops, keywords] = await Promise.all([
-    getMovieDetails(tmdbId),
-    getMovieCredits(tmdbId),
-    getMovieImages(tmdbId),
-    getMovieKeywords(tmdbId),
+  const [movie, credits, keywords] = await Promise.all([
+    fetchMovieDetails(tmdbId),
+    fetchMovieCredits(tmdbId),
+    fetchMovieKeywords(tmdbId),
   ])
 
   // Fallback if movie not found
@@ -26,9 +31,10 @@ export default async function MovieDetailPage({
   }
 
   const serverPosterSrc = movie.poster_path ? posterURL(movie.poster_path) : ""
-  const serverBackdrops = backdrops.length > 0
-    ? backdrops
-    : movie.backdrop_path ? [backdropURL(movie.backdrop_path)] : []
+  const { urls: serverBackdrops, fromPoster: backdropFromPoster } = await getMovieBackdrops(tmdbId, {
+    posterPath: movie.poster_path,
+    backdropPath: movie.backdrop_path,
+  })
 
   return (
     <MovieDetailClient
@@ -36,6 +42,7 @@ export default async function MovieDetailPage({
       movie={movie}
       credits={credits}
       backdrops={serverBackdrops}
+      backdropFromPoster={backdropFromPoster}
       keywords={keywords}
       serverPosterSrc={serverPosterSrc}
     />

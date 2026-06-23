@@ -1,4 +1,5 @@
 import { supabase } from "./supabase"
+import { getMovieDetails, type MovieGenre } from "./tmdb"
 import { Movie, type Recommendation } from "./types"
 
 type MovieRow = {
@@ -8,10 +9,47 @@ type MovieRow = {
   language: string
   poster: string
   backdrop: string | null
+  genres?: unknown
+  runtime?: number | null
   watched_at?: string | null
   rating?: number | string | null
   review_headline?: string | null
   review_body?: string | null
+}
+
+function parseGenres(raw: unknown): MovieGenre[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) {
+    return raw.filter(
+      (g): g is MovieGenre =>
+        g != null && typeof g === "object" && "name" in g && typeof (g as MovieGenre).name === "string"
+    )
+  }
+  if (typeof raw === "string") {
+    try {
+      return parseGenres(JSON.parse(raw))
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+async function resolveMetadataForMovie(movie: Movie): Promise<{
+  genres: MovieGenre[]
+  runtime: number | null
+}> {
+  const hasGenres = (movie.genres?.length ?? 0) > 0
+  const hasRuntime = movie.runtime != null && movie.runtime > 0
+  if (hasGenres && hasRuntime) {
+    return { genres: movie.genres!, runtime: movie.runtime! }
+  }
+
+  const details = await getMovieDetails(movie.id)
+  return {
+    genres: hasGenres ? movie.genres! : (details?.genres ?? []),
+    runtime: hasRuntime ? movie.runtime! : (details?.runtime ?? null),
+  }
 }
 
 // Convert a Supabase row to the app's Movie type
@@ -23,6 +61,8 @@ function rowToMovie(row: MovieRow): Movie {
     language: row.language,
     poster: row.poster,
     backdrop: row.backdrop || undefined,
+    genres: parseGenres(row.genres),
+    runtime: row.runtime ?? undefined,
     watchedAt: row.watched_at || undefined,
     rating:
       row.rating != null && row.rating !== ""
@@ -76,6 +116,8 @@ export async function addToWatchlistDetailed(
     return { ok: false, reason: "already_watchlisted" }
   }
 
+  const { genres, runtime } = await resolveMetadataForMovie(movie)
+
   const { error } = await supabase.from("watchlist").insert({
     tmdb_id: movie.id,
     title: movie.title,
@@ -83,6 +125,8 @@ export async function addToWatchlistDetailed(
     language: movie.language,
     poster: movie.poster,
     backdrop: movie.backdrop || null,
+    genres,
+    runtime,
   })
   if (error) {
     console.error("Error adding to watchlist:", error.message)
@@ -158,6 +202,8 @@ export async function markAsWatched(
     return true
   }
 
+  const { genres, runtime } = await resolveMetadataForMovie(movie)
+
   // Insert into watched table
   const { error: insertError } = await supabase.from("watched").insert({
     tmdb_id: movie.id,
@@ -166,6 +212,8 @@ export async function markAsWatched(
     language: movie.language,
     poster: movie.poster,
     backdrop: movie.backdrop || null,
+    genres,
+    runtime,
     rating,
     review_body: reviewBody || null,
     watched_at: watchedAtIso,

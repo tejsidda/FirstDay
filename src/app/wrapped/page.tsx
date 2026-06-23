@@ -106,16 +106,18 @@ export default function WrappedPage() {
     }
   }, [])
 
-  // Hydrate TMDB details (genres + runtime) for films not yet cached
+  // Legacy rows without genres/runtime: one cached proxy fetch each (older library entries)
   useEffect(() => {
     if (watched.length === 0) return
     let active = true
     const cache = readCache()
-    const missing = watched.filter((w) => !cache[w.id])
+    const missing = watched.filter(
+      (w) =>
+        !cache[w.id] &&
+        ((w.genres?.length ?? 0) === 0 || w.runtime == null || w.runtime <= 0)
+    )
     if (missing.length === 0) return
 
-    // Defer the initial progress setState so the new react-hooks/set-state-in-effect
-    // lint rule doesn't trip; the work below is async anyway.
     queueMicrotask(() => {
       if (!active) return
       setTmdbProgress({ done: 0, total: missing.length })
@@ -123,7 +125,7 @@ export default function WrappedPage() {
 
     fetchInBatches(
       missing,
-      8,
+      4,
       async (m) => {
         try {
           const d = (await getMovieDetails(m.id)) as TMDBDetails
@@ -132,8 +134,8 @@ export default function WrappedPage() {
             id: m.id,
             details: {
               id: d.id,
-              runtime: d.runtime ?? null,
-              genres: d.genres || [],
+              runtime: m.runtime ?? d.runtime ?? null,
+              genres: m.genres?.length ? m.genres : d.genres || [],
             },
           }
         } catch {
@@ -142,7 +144,7 @@ export default function WrappedPage() {
       },
       (done, total) => {
         if (active) setTmdbProgress({ done, total })
-      },
+      }
     ).then((entries) => {
       if (!active) return
       const next: CacheMap = { ...cache }
@@ -797,12 +799,18 @@ function computeStats(films: Movie[], cache: CacheMap): Stats {
   let runtimeSum = 0
   for (const f of films) {
     const d = cache[f.id]
-    if (!d) continue
-    if (typeof d.runtime === "number" && d.runtime > 0) {
+    const runtime =
+      f.runtime != null && f.runtime > 0
+        ? f.runtime
+        : typeof d?.runtime === "number" && d.runtime > 0
+          ? d.runtime
+          : null
+    if (runtime != null) {
       runtimeKnown++
-      runtimeSum += d.runtime
+      runtimeSum += runtime
     }
-    for (const g of d.genres || []) {
+    const genres = f.genres?.length ? f.genres : d?.genres || []
+    for (const g of genres) {
       genreCounts.set(g.name, (genreCounts.get(g.name) || 0) + 1)
     }
   }
