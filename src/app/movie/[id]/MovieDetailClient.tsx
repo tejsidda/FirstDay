@@ -1,0 +1,1321 @@
+"use client"
+
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import Link from "next/link"
+import { useSearchParams } from "next/navigation"
+import { supabase } from "@/lib/supabase"
+import { getPersonFilmography, formatLanguage } from "@/lib/tmdb"
+import { addToWatchlist, removeFromWatchlist, markAsWatched, updateReview } from "@/lib/db"
+import type { Movie } from "@/lib/types"
+import RatingDisplay from "@/components/RatingDisplay"
+import StandingOvationInput from "@/components/StandingOvationInput"
+import MovieSearch from "@/components/MovieSearch"
+import { useIsMobile, MOBILE_TAB_BAR_INSET } from "@/hooks/useIsMobile"
+
+const CAST_PREVIEW = 12
+const BG = "#0c0c10"
+const SAVE_FLASH_MS = 1200
+
+const GRAD = {
+  left: `linear-gradient(to right, ${BG} 0%, ${BG} 40%, rgba(12,12,16,0.90) 52%, rgba(12,12,16,0.55) 66%, rgba(12,12,16,0.12) 82%, transparent 100%)`,
+  right: `linear-gradient(to left,  ${BG} 0%, ${BG} 40%, rgba(12,12,16,0.90) 52%, rgba(12,12,16,0.55) 66%, rgba(12,12,16,0.12) 82%, transparent 100%)`,
+  topBottom: `linear-gradient(to bottom, ${BG} 0%, transparent 11%, transparent 89%, ${BG} 100%)`,
+}
+
+const MOBILE_GRAD = {
+  scrim: `linear-gradient(to bottom, ${BG} 0%, rgba(12,12,16,0.72) 28%, rgba(12,12,16,0.88) 72%, ${BG} 100%)`,
+}
+
+type TMDBMovie = {
+  id: number
+  title: string
+  tagline?: string
+  original_language?: string
+  release_date?: string
+  overview?: string
+  poster_path?: string | null
+  backdrop_path?: string | null
+  genres?: { id: number; name: string }[]
+  runtime?: number
+}
+type WatchedRow = {
+  id: string
+  tmdb_id: string
+  title: string
+  year?: number
+  language?: string
+  poster: string
+  backdrop?: string | null
+  watched_at?: string | null
+  rating?: number | string | null
+  review_headline?: string | null
+  review_body?: string | null
+}
+
+type Props = {
+  tmdbId: string
+  movie: TMDBMovie
+  credits: { director: string; cast: string[] }
+  backdrops: string[]
+  backdropFromPoster?: boolean
+  keywords: string[]
+  serverPosterSrc: string
+}
+
+type SaveFlash = "watchlist-add" | "watchlist-remove" | "rating" | "review" | null
+
+function ratingNumber(r: unknown): number | null {
+  if (r == null || r === "") return null
+  const n = Number(r)
+  return Number.isFinite(n) ? n : null
+}
+function monthYear(date?: string) {
+  if (!date) return "Unknown"
+  const d = new Date(date)
+  return Number.isNaN(d.getTime()) ? "Unknown" : d.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+}
+function todayDateInput() {
+  const n = new Date()
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`
+}
+function dateInputToIso(v: string) {
+  const [y, m, d] = v.split("-").map(Number)
+  if (!y || !m || !d) return new Date().toISOString()
+  return new Date(y, m - 1, d, 12).toISOString()
+}
+
+function PosterFallback({ title }: { title?: string }) {
+  return (
+    <div
+      className="t-title-sm"
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+        background: "linear-gradient(145deg,var(--background-elevated),var(--background-sunken))",
+        color: "var(--text-faint-ui)",
+        textAlign: "center",
+      }}
+    >
+      {title || "No poster"}
+    </div>
+  )
+}
+
+function SectionShell({
+  idx,
+  textSide,
+  minH = "100svh",
+  isMobile,
+  revealed,
+  backdropSrc,
+  posterFallback = false,
+  sectionColor,
+  children,
+}: {
+  idx: number
+  textSide: "left" | "right"
+  minH?: string
+  isMobile: boolean
+  revealed: boolean
+  backdropSrc?: string
+  posterFallback?: boolean
+  sectionColor: string | null
+  children: ReactNode
+}) {
+  const motion = revealed ? "scale(1)" : "scale(1.06)"
+  const contentMotion = revealed ? "translateY(0)" : "translateY(22px)"
+  const useCover = isMobile || posterFallback
+
+  return (
+    <section data-section={idx} style={{ position: "relative", minHeight: minH, zIndex: 1 }}>
+      {backdropSrc && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: `url(${backdropSrc})`,
+            backgroundSize: useCover ? "cover" : "52% auto",
+            backgroundPosition: useCover
+              ? "center 30%"
+              : textSide === "left"
+                ? "right center"
+                : "left center",
+            backgroundRepeat: "no-repeat",
+            filter: posterFallback
+              ? "blur(14px) brightness(0.38) saturate(1.15)"
+              : isMobile
+                ? "brightness(0.42) saturate(1.1)"
+                : "brightness(0.78) saturate(1.2)",
+            transform: posterFallback ? "scale(1.1)" : motion,
+            opacity: revealed ? 1 : 0,
+            transition: posterFallback
+              ? "opacity 1s ease, transform 1.2s cubic-bezier(0.25,0.46,0.45,0.94)"
+              : "opacity 1s ease, transform 1.2s cubic-bezier(0.25,0.46,0.45,0.94)",
+          }}
+        />
+      )}
+      {sectionColor && !isMobile && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: `radial-gradient(ellipse 60% 80% at ${textSide === "left" ? "75%" : "25%"} 50%, rgba(${sectionColor},0.28) 0%, transparent 70%)`,
+            pointerEvents: "none",
+            transition: "background 1.8s ease",
+          }}
+        />
+      )}
+      {isMobile ? (
+        <div style={{ position: "absolute", inset: 0, background: MOBILE_GRAD.scrim, pointerEvents: "none" }} />
+      ) : (
+        <>
+          <div style={{ position: "absolute", inset: 0, background: GRAD[textSide], pointerEvents: "none" }} />
+          <div style={{ position: "absolute", inset: 0, background: GRAD.topBottom, pointerEvents: "none" }} />
+        </>
+      )}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 2,
+          width: isMobile ? "100%" : "48%",
+          marginLeft: !isMobile && textSide === "right" ? "52%" : 0,
+          minHeight: minH,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          padding: isMobile ? "80px 20px 48px" : textSide === "left" ? "100px 40px 80px 56px" : "100px 56px 80px 40px",
+          opacity: revealed ? 1 : 0,
+          transform: contentMotion,
+          transition: "opacity 0.7s ease 0.25s, transform 0.7s cubic-bezier(0.25,0.46,0.45,0.94) 0.25s",
+        }}
+      >
+        {children}
+      </div>
+    </section>
+  )
+}
+
+function ActionSkeleton() {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 10, minHeight: 44 }}>
+      <div className="movie-action-skeleton" style={{ width: 132 }} aria-hidden />
+      <div className="movie-action-skeleton" style={{ width: 118 }} aria-hidden />
+    </div>
+  )
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return <div className="t-label" style={{ color: "var(--text-label)" }}>{children}</div>
+}
+
+function MetaItem({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div>
+      <SectionLabel>{label}</SectionLabel>
+      <div className="t-title-sm" style={{ marginTop: 8, color: "var(--text-emphasis)" }}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function PersonButton({
+  name,
+  isSelected,
+  onClick,
+  disabled,
+}: {
+  name: string
+  isSelected: boolean
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="t-title-sm"
+      style={{
+        color: isSelected ? "var(--text-strong)" : "var(--text-emphasis)",
+        background: "transparent",
+        border: "none",
+        padding: 0,
+        cursor: disabled ? "default" : "pointer",
+        textAlign: "left",
+        textDecoration: isSelected ? "underline" : "none",
+        textUnderlineOffset: 4,
+        transition: "color 0.2s ease",
+      }}
+      onMouseEnter={(e) => {
+        if (!disabled) e.currentTarget.style.color = "var(--text-inverse)"
+      }}
+      onMouseLeave={(e) => {
+        if (!disabled)
+          e.currentTarget.style.color = isSelected ? "var(--text-strong)" : "var(--text-emphasis)"
+      }}
+    >
+      {name}
+    </button>
+  )
+}
+
+function PrimaryButton({
+  onClick,
+  disabled,
+  label,
+  savedLabel,
+  variant = "primary",
+  savedFlash = false,
+  compact = false,
+}: {
+  onClick: () => void
+  disabled?: boolean
+  label: string
+  savedLabel?: string
+  variant?: "primary" | "secondary"
+  savedFlash?: boolean
+  compact?: boolean
+}) {
+  const p = variant === "primary"
+  const display = savedFlash ? savedLabel ?? "Saved" : label
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`t-button${savedFlash ? " movie-btn-saved" : ""}`}
+      style={{
+        color: savedFlash ? undefined : p ? "#0d0d0f" : "var(--text-emphasis)",
+        background: savedFlash ? undefined : p ? "rgba(255,255,255,0.92)" : "var(--tint-base)",
+        border: savedFlash ? undefined : p ? "1px solid rgba(255,255,255,0.85)" : "1px solid var(--border-default)",
+        borderRadius: 999,
+        padding: compact ? "8px 14px" : "10px 20px",
+        fontSize: compact ? undefined : undefined,
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled && !savedFlash ? 0.55 : 1,
+        transition: savedFlash
+          ? undefined
+          : "opacity 0.2s ease, background 0.2s ease, border-color 0.2s ease, transform 0.2s ease",
+        flex: compact ? "1 1 auto" : undefined,
+        minWidth: compact ? 0 : undefined,
+        whiteSpace: "nowrap",
+      }}
+      onMouseEnter={(e) => {
+        if (disabled || savedFlash) return
+        if (p) e.currentTarget.style.opacity = "0.88"
+        else {
+          e.currentTarget.style.background = "var(--tint-hover)"
+          e.currentTarget.style.borderColor = "var(--border-strong)"
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (disabled || savedFlash) return
+        if (p) e.currentTarget.style.opacity = "1"
+        else {
+          e.currentTarget.style.background = "var(--tint-base)"
+          e.currentTarget.style.borderColor = "var(--border-default)"
+        }
+      }}
+    >
+      {display}
+    </button>
+  )
+}
+
+function SecondaryButton(props: Omit<Parameters<typeof PrimaryButton>[0], "variant">) {
+  return <PrimaryButton {...props} variant="secondary" />
+}
+
+export default function MovieDetailClient({
+  tmdbId,
+  movie,
+  credits,
+  backdrops,
+  backdropFromPoster = false,
+  keywords,
+  serverPosterSrc,
+}: Props) {
+  const searchParams = useSearchParams()
+  const rateOnLoad = searchParams?.get("rate") === "1"
+  const isMobile = useIsMobile()
+
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [dbRecord, setDbRecord] = useState<WatchedRow | null>(null)
+  const [isWatchlisted, setIsWatchlisted] = useState(false)
+  const [userLoading, setUserLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [headline, setHeadline] = useState("")
+  const [body, setBody] = useState("")
+  const [editingReview, setEditingReview] = useState(false)
+  const [savingReview, setSavingReview] = useState(false)
+  const [ratingOpen, setRatingOpen] = useState(false)
+  const [ratingValue, setRatingValue] = useState<number | null>(null)
+  const [savingRating, setSavingRating] = useState(false)
+  const [watchedEarlier, setWatchedEarlier] = useState(false)
+  const [watchedDate, setWatchedDate] = useState(todayDateInput())
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [saveFlash, setSaveFlash] = useState<SaveFlash>(null)
+  const [showStickyBar, setShowStickyBar] = useState(false)
+  const rateOnLoadHandledRef = useRef(false)
+  const actionAnchorRef = useRef<HTMLDivElement>(null)
+  const yourTakeRef = useRef<HTMLDivElement>(null)
+  const saveFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [selectedPerson, setSelectedPerson] = useState<string | null>(null)
+  const [filmography, setFilmography] = useState<{ id: number; title: string; year: number }[]>([])
+  const [loadingFilmography, setLoadingFilmography] = useState(false)
+  const [castExpanded, setCastExpanded] = useState(false)
+  const [activeBackdropIdx, setActiveBackdropIdx] = useState(0)
+  const [sectionColors, setSectionColors] = useState<(string | null)[]>([null, null, null])
+  const [revealed, setRevealed] = useState(false)
+  const backdropsRef = useRef<string[]>([])
+  backdropsRef.current = backdrops
+
+  const triggerSaveFlash = useCallback((key: NonNullable<SaveFlash>) => {
+    if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current)
+    setSaveFlash(key)
+    saveFlashTimerRef.current = setTimeout(() => {
+      setSaveFlash(null)
+      saveFlashTimerRef.current = null
+    }, SAVE_FLASH_MS)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handler = () => setSearchOpen(true)
+    window.addEventListener("fdfs:open-search", handler)
+    return () => window.removeEventListener("fdfs:open-search", handler)
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    async function loadUserData() {
+      setUserLoading(true)
+      const [{ data: wd }, { data: wl }] = await Promise.all([
+        supabase.from("watched").select("*").eq("tmdb_id", tmdbId).limit(1),
+        supabase.from("watchlist").select("id").eq("tmdb_id", tmdbId).limit(1),
+      ])
+      if (!active) return
+      const row = wd?.[0]
+      if (row) {
+        setDbRecord(row as WatchedRow)
+        setHeadline((row as WatchedRow).review_headline || "")
+        setBody((row as WatchedRow).review_body || "")
+        setRatingValue(ratingNumber((row as WatchedRow).rating))
+      }
+      setIsWatchlisted(wl != null && wl.length > 0)
+      setUserLoading(false)
+    }
+    loadUserData()
+    return () => {
+      active = false
+    }
+  }, [tmdbId])
+
+  useEffect(() => {
+    if (!userLoading) {
+      const id = requestAnimationFrame(() => requestAnimationFrame(() => setRevealed(true)))
+      return () => cancelAnimationFrame(id)
+    }
+  }, [userLoading])
+
+  useEffect(() => {
+    if (userLoading || !rateOnLoad || rateOnLoadHandledRef.current || dbRecord) return
+    rateOnLoadHandledRef.current = true
+    queueMicrotask(() => {
+      setRatingValue((v) => v ?? 7)
+      setRatingOpen(true)
+      setWatchedEarlier(true)
+    })
+  }, [userLoading, rateOnLoad, dbRecord])
+
+  useEffect(() => {
+    if (!backdrops.length || isMobile) return
+    backdrops.forEach((src, i) => {
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      img.onload = () => {
+        try {
+          const c = document.createElement("canvas")
+          c.width = 50
+          c.height = 28
+          const ctx = c.getContext("2d")
+          if (!ctx) return
+          ctx.drawImage(img, 0, 0, 50, 28)
+          const { data } = ctx.getImageData(0, 0, 50, 28)
+          let r = 0,
+            g = 0,
+            b = 0,
+            n = 0
+          for (let j = 0; j < data.length; j += 16) {
+            r += data[j]
+            g += data[j + 1]
+            b += data[j + 2]
+            n++
+          }
+          r = Math.round(r / n)
+          g = Math.round(g / n)
+          b = Math.round(b / n)
+          if (Math.max(r, g, b) - Math.min(r, g, b) > 18)
+            setSectionColors((prev) => {
+              const x = [...prev]
+              x[i] = `${r},${g},${b}`
+              return x
+            })
+        } catch {
+          /* CORS blocked */
+        }
+      }
+      img.src = src
+    })
+  }, [backdrops, isMobile])
+
+  useEffect(() => {
+    if (userLoading || isMobile) return
+    const io = new IntersectionObserver(
+      (entries) =>
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            const idx = Number((e.target as HTMLElement).dataset.section || 0)
+            setActiveBackdropIdx(Math.max(0, Math.min(idx, backdropsRef.current.length - 1)))
+          }
+        }),
+      { threshold: 0.25, rootMargin: "-5% 0px -40% 0px" }
+    )
+    document.querySelectorAll<HTMLElement>("[data-section]").forEach((el) => io.observe(el))
+    return () => io.disconnect()
+  }, [userLoading, isMobile])
+
+  useEffect(() => {
+    if (userLoading) return
+    const el = actionAnchorRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      ([entry]) => setShowStickyBar(!entry.isIntersecting && !ratingOpen),
+      { threshold: 0, rootMargin: "-8px 0px 0px 0px" }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [userLoading, ratingOpen])
+
+  const posterSrc = dbRecord?.poster || serverPosterSrc
+
+  const movieForDb = (): Movie => ({
+    id: String(tmdbId),
+    title: movie.title,
+    year: movie.release_date ? new Date(movie.release_date).getFullYear() : 0,
+    language: formatLanguage(movie.original_language),
+    poster: posterSrc || "",
+    backdrop: backdrops[0] || undefined,
+  })
+
+  const handleAddWatchlist = async () => {
+    setBusy(true)
+    if (await addToWatchlist(movieForDb())) {
+      setIsWatchlisted(true)
+      triggerSaveFlash("watchlist-add")
+    }
+    setBusy(false)
+  }
+
+  const handleRemoveWatchlist = async () => {
+    setBusy(true)
+    if (await removeFromWatchlist(tmdbId)) {
+      setIsWatchlisted(false)
+      triggerSaveFlash("watchlist-remove")
+    }
+    setBusy(false)
+  }
+
+  const handleSaveRating = async () => {
+    if (ratingValue == null) return
+    setSavingRating(true)
+    setActionError(null)
+    const ok = await markAsWatched(movieForDb(), ratingValue, {
+      watchedAt: watchedEarlier ? dateInputToIso(watchedDate) : new Date().toISOString(),
+    })
+    if (!ok) {
+      setActionError("Couldn't fully save — try again.")
+      setSavingRating(false)
+      return
+    }
+    const { data } = await supabase.from("watched").select("*").eq("tmdb_id", tmdbId).limit(1)
+    if (data?.[0]) setDbRecord(data[0] as WatchedRow)
+    setIsWatchlisted(false)
+    setRatingOpen(false)
+    setWatchedEarlier(false)
+    setWatchedDate(todayDateInput())
+    setSavingRating(false)
+    triggerSaveFlash("rating")
+  }
+
+  const handleSaveReview = async () => {
+    setSavingReview(true)
+    if (await updateReview(tmdbId, headline, body || undefined)) {
+      setEditingReview(false)
+      setDbRecord((prev) =>
+        prev ? { ...prev, review_headline: headline, review_body: body } : prev
+      )
+      triggerSaveFlash("review")
+    }
+    setSavingReview(false)
+  }
+
+  const handlePersonClick = async (name: string) => {
+    if (selectedPerson === name) {
+      setSelectedPerson(null)
+      setFilmography([])
+      return
+    }
+    setSelectedPerson(name)
+    setLoadingFilmography(true)
+    setFilmography(await getPersonFilmography(name))
+    setLoadingFilmography(false)
+  }
+
+  const ratingNum = ratingNumber(dbRecord?.rating)
+  const hasReview = Boolean(dbRecord?.review_headline || dbRecord?.review_body)
+  const isWatched = Boolean(dbRecord)
+  const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : null
+  const visibleCast = castExpanded ? credits.cast : credits.cast.slice(0, CAST_PREVIEW)
+  const activeColor = sectionColors[activeBackdropIdx]
+  const bd = (i: number) => backdrops[Math.min(i, backdrops.length - 1)] || backdrops[0]
+  const sc = (i: number) => sectionColors[Math.min(i, sectionColors.length - 1)]
+
+  const openRating = () => {
+    setRatingValue(ratingValue ?? ratingNum ?? 7)
+    setRatingOpen(true)
+  }
+
+  const openReviewEditor = () => {
+    setEditingReview(true)
+    requestAnimationFrame(() => {
+      yourTakeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  }
+
+  const actionButtons = (compact = false) => {
+    if (userLoading) return <ActionSkeleton />
+
+    return (
+      <>
+        {!isWatched && !isWatchlisted && (
+          <PrimaryButton
+            compact={compact}
+            onClick={handleAddWatchlist}
+            disabled={busy}
+            label="Add to watchlist"
+            savedFlash={saveFlash === "watchlist-add"}
+            savedLabel="Added"
+          />
+        )}
+        {isWatchlisted && !isWatched && (
+          <SecondaryButton
+            compact={compact}
+            onClick={handleRemoveWatchlist}
+            disabled={busy}
+            label="Remove"
+            savedFlash={saveFlash === "watchlist-remove"}
+            savedLabel="Removed"
+          />
+        )}
+        {!isWatched ? (
+          <PrimaryButton
+            compact={compact}
+            onClick={openRating}
+            disabled={busy}
+            label="Mark watched"
+            variant={isWatchlisted ? "primary" : "secondary"}
+            savedFlash={saveFlash === "rating" && !ratingOpen}
+            savedLabel="Saved"
+          />
+        ) : compact ? (
+          <>
+            <SecondaryButton
+              compact
+              onClick={openRating}
+              label={ratingNum != null ? "Change rating" : "Add rating"}
+              savedFlash={saveFlash === "rating" && !ratingOpen}
+              savedLabel="Saved"
+            />
+            {!hasReview && !editingReview && (
+              <SecondaryButton compact onClick={openReviewEditor} label="Write review" />
+            )}
+            {hasReview && !editingReview && (
+              <SecondaryButton compact onClick={openReviewEditor} label="Edit review" />
+            )}
+          </>
+        ) : null}
+      </>
+    )
+  }
+
+  const ratingPanel = (
+    <div
+      className="movie-rating-panel-in"
+      style={{
+        padding: 20,
+        background: "rgba(12,12,16,0.85)",
+        border: "1px solid var(--border-default)",
+        borderRadius: 12,
+        backdropFilter: "blur(8px)",
+      }}
+    >
+      <div className="t-label" style={{ color: "var(--text-label)", marginBottom: 16, textAlign: "center" }}>
+        How much applause?
+      </div>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+        <StandingOvationInput value={ratingValue} onChange={(v) => setRatingValue(v)} />
+      </div>
+      <div
+        style={{
+          marginTop: 16,
+          paddingTop: 16,
+          borderTop: "1px solid var(--border-default)",
+          display: "grid",
+          gap: 10,
+          maxWidth: 340,
+          marginLeft: "auto",
+          marginRight: "auto",
+        }}
+      >
+        <label
+          className="t-label-value"
+          style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-emphasis)", cursor: "pointer" }}
+        >
+          <input
+            type="checkbox"
+            checked={watchedEarlier}
+            onChange={(e) => {
+              const v = e.target.checked
+              setWatchedEarlier(v)
+              if (v && !watchedDate) setWatchedDate(todayDateInput())
+            }}
+          />
+          I watched this earlier — log a specific date
+        </label>
+        {watchedEarlier && (
+          <input
+            type="date"
+            value={watchedDate}
+            max={todayDateInput()}
+            onChange={(e) => setWatchedDate(e.target.value)}
+            aria-label="Watched on"
+            className="t-label-value"
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--border-default)",
+              background: "var(--background-elevated)",
+              color: "var(--text-emphasis)",
+              outline: "none",
+            }}
+          />
+        )}
+      </div>
+      <div style={{ marginTop: 16, display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+        <PrimaryButton
+          onClick={handleSaveRating}
+          disabled={savingRating || ratingValue == null}
+          label={savingRating ? "Saving…" : isWatched ? "Update rating" : "Mark as watched"}
+          savedFlash={saveFlash === "rating"}
+          savedLabel="Saved"
+        />
+        <SecondaryButton
+          onClick={() => {
+            setRatingOpen(false)
+            setWatchedEarlier(false)
+            setActionError(null)
+          }}
+          label="Cancel"
+        />
+      </div>
+      {actionError && (
+        <p className="t-caption" style={{ marginTop: 10, color: "rgba(255,180,180,0.85)", textAlign: "center" }}>
+          {actionError}
+        </p>
+      )}
+    </div>
+  )
+
+  const changeRatingLink = (
+    <button
+      type="button"
+      onClick={openRating}
+      className="t-button-sm"
+      style={{
+        marginTop: 10,
+        padding: 0,
+        border: "none",
+        background: "transparent",
+        color: "var(--text-link)",
+        cursor: "pointer",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.color = "var(--text-link-hover)"
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.color = "var(--text-link)"
+      }}
+    >
+      {ratingNum != null ? "Change rating" : "Add rating"}
+    </button>
+  )
+
+  const yourTakeSection = isWatched && !userLoading && (
+    <div
+      ref={yourTakeRef}
+      id="your-take"
+      className="movie-panel-in"
+      style={{
+        marginTop: 28,
+        paddingTop: 28,
+        borderTop: "1px solid rgba(255,255,255,0.08)",
+      }}
+    >
+      <SectionLabel>Your take</SectionLabel>
+
+      <div style={{ marginTop: 14 }}>
+        {ratingNum != null ? (
+          <>
+            <RatingDisplay rating={ratingNum} size="lg" showLabel />
+            {!ratingOpen && changeRatingLink}
+          </>
+        ) : (
+          <PrimaryButton onClick={openRating} label="Add your applause" />
+        )}
+      </div>
+
+      {ratingOpen && (
+        <div style={{ marginTop: 16, maxWidth: 440 }}>{ratingPanel}</div>
+      )}
+
+      {editingReview ? (
+        <div
+          style={{
+            marginTop: 20,
+            padding: 20,
+            maxWidth: 520,
+            background: "rgba(12,12,16,0.72)",
+            border: "1px solid var(--border-default)",
+            borderRadius: 12,
+            backdropFilter: "blur(10px)",
+          }}
+        >
+          <input
+            value={headline}
+            onChange={(e) => setHeadline(e.target.value)}
+            placeholder="A line that captures it"
+            aria-label="Review headline"
+            className="t-sub"
+            style={{
+              width: "100%",
+              color: "var(--text-strong)",
+              background: "transparent",
+              border: "none",
+              borderBottom: "1px solid var(--border-default)",
+              padding: "8px 0",
+              outline: "none",
+            }}
+          />
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="What stayed with you? A scene, a feeling, why it mattered…"
+            aria-label="Review body"
+            className="t-body"
+            style={{
+              width: "100%",
+              marginTop: 14,
+              color: "var(--text-emphasis)",
+              background: "var(--background-elevated)",
+              border: "1px solid var(--border-default)",
+              borderRadius: 8,
+              padding: 12,
+              minHeight: 140,
+              outline: "none",
+              resize: "vertical",
+            }}
+          />
+          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+            <PrimaryButton
+              onClick={handleSaveReview}
+              disabled={savingReview}
+              label={savingReview ? "Saving…" : "Save review"}
+              savedFlash={saveFlash === "review"}
+              savedLabel="Saved"
+            />
+            <SecondaryButton
+              onClick={() => {
+                setEditingReview(false)
+                setHeadline(dbRecord?.review_headline || "")
+                setBody(dbRecord?.review_body || "")
+              }}
+              label="Cancel"
+            />
+          </div>
+        </div>
+      ) : hasReview ? (
+        <div
+          style={{
+            marginTop: 20,
+            padding: 20,
+            maxWidth: 520,
+            background: "rgba(12,12,16,0.45)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 12,
+            position: "relative",
+          }}
+        >
+          <button
+            type="button"
+            onClick={openReviewEditor}
+            className="t-button-sm"
+            style={{
+              position: "absolute",
+              top: 16,
+              right: 16,
+              padding: 0,
+              border: "none",
+              background: "transparent",
+              color: "var(--text-link)",
+              cursor: "pointer",
+            }}
+          >
+            Edit
+          </button>
+          {dbRecord?.review_headline && (
+            <h2 className="t-sub" style={{ margin: 0, color: "var(--text-strong)" }}>
+              {dbRecord.review_headline}
+            </h2>
+          )}
+          {dbRecord?.review_body && (
+            <p
+              className="t-body-lg"
+              style={{
+                marginTop: dbRecord?.review_headline ? 14 : 0,
+                marginBottom: 0,
+                color: "var(--text-emphasis)",
+              }}
+            >
+              {dbRecord.review_body}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div
+          style={{
+            marginTop: 20,
+            padding: "24px 20px",
+            maxWidth: 520,
+            background: "rgba(12,12,16,0.5)",
+            border: "1px dashed rgba(255,255,255,0.14)",
+            borderRadius: 12,
+            textAlign: "center",
+          }}
+        >
+          <p className="t-title-sm" style={{ margin: 0, color: "var(--text-secondary)" }}>
+            Capture what stuck with you
+          </p>
+          <p className="t-meta" style={{ margin: "8px 0 0", color: "var(--text-dim)" }}>
+            A headline and a few lines — your diary, not a critic&apos;s essay.
+          </p>
+          <div style={{ marginTop: 18, display: "flex", justifyContent: "center" }}>
+            <PrimaryButton onClick={openReviewEditor} label="Start writing" />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  const filmographyPanel = selectedPerson && (
+    <div
+      className="movie-panel-in"
+      style={{
+        marginTop: 18,
+        padding: 16,
+        background: "rgba(12,12,16,0.82)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 10,
+        backdropFilter: "blur(8px)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div className="t-label" style={{ color: "var(--text-label)" }}>
+            Also by
+          </div>
+          <div className="t-title-lg" style={{ marginTop: 4, color: "var(--text-strong)" }}>
+            {selectedPerson}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedPerson(null)
+            setFilmography([])
+          }}
+          className="t-button-sm"
+          style={{ color: "var(--text-search)", background: "transparent", border: "none", cursor: "pointer" }}
+        >
+          Close
+        </button>
+      </div>
+      <div style={{ marginTop: 12 }}>
+        {loadingFilmography ? (
+          <p className="t-label-value" style={{ color: "var(--text-search)" }}>
+            Loading…
+          </p>
+        ) : filmography.length === 0 ? (
+          <p className="t-label-value" style={{ color: "var(--text-search)" }}>
+            No other films found.
+          </p>
+        ) : (
+          <ul
+            style={{
+              listStyle: "none",
+              padding: 0,
+              margin: 0,
+              display: "grid",
+              gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+              gap: "4px 14px",
+            }}
+          >
+            {filmography.map((f) => (
+              <li key={f.id}>
+                <Link
+                  href={`/movie/${f.id}`}
+                  className="t-title-sm"
+                  style={{
+                    color: "var(--text-emphasis)",
+                    lineHeight: 1.7,
+                    textDecoration: "none",
+                    transition: "color 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "var(--text-inverse)"
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "var(--text-emphasis)"
+                  }}
+                >
+                  {f.title}
+                  {f.year ? (
+                    <span className="t-caption" style={{ marginLeft: 6, color: "var(--text-search)" }}>
+                      {f.year}
+                    </span>
+                  ) : null}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+
+  const shellProps = (idx: number, textSide: "left" | "right", minH?: string) => ({
+    idx,
+    textSide,
+    minH,
+    isMobile,
+    revealed,
+    backdropSrc: bd(idx),
+    posterFallback: backdropFromPoster,
+    sectionColor: sc(idx),
+  })
+
+  return (
+    <main
+      className={isMobile ? "page-with-mobile-tabs" : undefined}
+      style={{
+        background: BG,
+        color: "var(--text-emphasis)",
+        position: "relative",
+        paddingBottom: showStickyBar && isMobile ? MOBILE_TAB_BAR_INSET : undefined,
+      }}
+    >
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 0,
+          background: activeColor ? `rgba(${activeColor},0.06)` : "transparent",
+          transition: "background 1.8s ease",
+        }}
+      />
+
+      <SectionShell {...shellProps(0, "left")}>
+        {isMobile && posterSrc && (
+          <div
+            style={{
+              width: 72,
+              aspectRatio: "2/3",
+              borderRadius: 8,
+              overflow: "hidden",
+              marginBottom: 16,
+              boxShadow: "0 6px 24px rgba(0,0,0,0.55)",
+              opacity: revealed ? 1 : 0,
+              transform: revealed ? "translateY(0)" : "translateY(8px)",
+              transition: "opacity 0.6s ease 0.1s, transform 0.6s ease 0.1s",
+            }}
+          >
+            <img
+              src={posterSrc}
+              alt=""
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          </div>
+        )}
+
+        <h1 className="t-display" style={{ margin: 0, color: "var(--text-strong)" }}>
+          {movie.title}
+        </h1>
+        {movie.tagline && (
+          <p className="t-title" style={{ margin: 0, marginTop: 12, color: "var(--text-dim)" }}>
+            {movie.tagline}
+          </p>
+        )}
+
+        {isWatchlisted && !isWatched && !userLoading && (
+          <div
+            className="t-button-sm mobile-stagger-in"
+            style={{
+              marginTop: 18,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 12px",
+              background: "var(--tint-base)",
+              border: "1px solid var(--border-default)",
+              borderRadius: 999,
+              color: "var(--text-emphasis)",
+              alignSelf: "flex-start",
+            }}
+          >
+            On your watchlist
+          </div>
+        )}
+
+        <div ref={actionAnchorRef}>
+          {!isWatched && (
+            <>
+              <div
+                style={{ marginTop: 24, display: "flex", flexWrap: "wrap", gap: 10, minHeight: 44 }}
+              >
+                {actionButtons()}
+              </div>
+              {ratingOpen && (
+                <div style={{ marginTop: 20, maxWidth: 440 }}>{ratingPanel}</div>
+              )}
+            </>
+          )}
+          {yourTakeSection}
+        </div>
+
+        <div
+          style={{
+            marginTop: 36,
+            paddingTop: 24,
+            borderTop: "1px solid rgba(255,255,255,0.08)",
+            display: "grid",
+            gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(auto-fit,minmax(110px,1fr))",
+            gap: 20,
+          }}
+        >
+          <MetaItem
+            label="Director"
+            value={
+              <PersonButton
+                name={credits.director || "Unknown"}
+                isSelected={selectedPerson === credits.director}
+                onClick={() => handlePersonClick(credits.director)}
+                disabled={!credits.director}
+              />
+            }
+          />
+          <MetaItem label="Language" value={formatLanguage(movie.original_language || "") || "Unknown"} />
+          <MetaItem label="Release" value={monthYear(movie.release_date)} />
+          <MetaItem label="Genre" value={movie.genres?.[0]?.name || "N/A"} />
+          {movie.runtime ? (
+            <MetaItem label="Runtime" value={`${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m`} />
+          ) : null}
+        </div>
+
+        {(movie.genres?.length || 0) > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 16 }}>
+            {movie.genres!.map((g) => (
+              <span
+                key={g.id}
+                className="t-button-sm"
+                style={{
+                  color: "var(--text-dim)",
+                  padding: "5px 12px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 999,
+                }}
+              >
+                {g.name}
+              </span>
+            ))}
+          </div>
+        )}
+      </SectionShell>
+
+      <SectionShell {...shellProps(1, "right")}>
+        {movie.overview && (
+          <div style={{ marginBottom: 44 }}>
+            <SectionLabel>Overview</SectionLabel>
+            <p className="t-body" style={{ marginTop: 12, color: "var(--text-emphasis)" }}>
+              {movie.overview}
+            </p>
+          </div>
+        )}
+
+        <div style={{ paddingTop: movie.overview ? 36 : 0, borderTop: movie.overview ? "1px solid rgba(255,255,255,0.08)" : "none" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: isMobile ? "1fr" : "150px 1fr",
+              gap: isMobile ? 20 : 32,
+              alignItems: "flex-start",
+            }}
+          >
+            {!isMobile && (
+              <div
+                style={{
+                  position: "relative",
+                  width: 150,
+                  aspectRatio: "2/3",
+                  borderRadius: 10,
+                  overflow: "hidden",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06)",
+                }}
+              >
+                {posterSrc ? (
+                  <img
+                    src={posterSrc}
+                    alt={movie.title}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none"
+                    }}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  />
+                ) : (
+                  <PosterFallback title={movie.title} />
+                )}
+              </div>
+            )}
+            <div>
+              <SectionLabel>Cast</SectionLabel>
+              {credits.cast.length === 0 ? (
+                <p className="t-meta" style={{ marginTop: 12, color: "var(--text-dim)" }}>
+                  No cast information.
+                </p>
+              ) : (
+                <>
+                  <ul
+                    style={{
+                      listStyle: "none",
+                      padding: 0,
+                      margin: 0,
+                      marginTop: 12,
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+                      gap: "6px 14px",
+                    }}
+                  >
+                    {visibleCast.map((name) => (
+                      <li key={name}>
+                        <PersonButton
+                          name={name}
+                          isSelected={selectedPerson === name}
+                          onClick={() => handlePersonClick(name)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                  {credits.cast.length > CAST_PREVIEW && (
+                    <button
+                      type="button"
+                      onClick={() => setCastExpanded((v) => !v)}
+                      className="t-button-sm"
+                      style={{
+                        marginTop: 10,
+                        color: "var(--text-link)",
+                        background: "transparent",
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {castExpanded ? "Show less" : `Show all ${credits.cast.length}`}
+                    </button>
+                  )}
+                </>
+              )}
+              {filmographyPanel}
+            </div>
+          </div>
+        </div>
+      </SectionShell>
+
+      <SectionShell {...shellProps(2, "left", "80svh")}>
+        {keywords.length > 0 && (
+          <div>
+            <SectionLabel>Themes</SectionLabel>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 14 }}>
+              {keywords.slice(0, 16).map((kw) => (
+                <span
+                  key={kw}
+                  className="t-caption"
+                  style={{
+                    color: "var(--text-dim)",
+                    padding: "5px 12px",
+                    background: "var(--tint-base)",
+                    borderRadius: 999,
+                  }}
+                >
+                  {kw}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <footer style={{ marginTop: 56, paddingTop: 28, borderTop: "1px solid rgba(255,255,255,0.08)", textAlign: "center" }}>
+          <p
+            className="t-caption"
+            style={{
+              margin: 0,
+              fontFamily: "var(--font-display)",
+              fontStyle: "italic",
+              color: "var(--text-footer)",
+            }}
+          >
+            {releaseYear ? `${movie.title} · ${releaseYear}` : movie.title}
+          </p>
+        </footer>
+      </SectionShell>
+
+      {showStickyBar && !ratingOpen && (
+        <div className="movie-sticky-actions" role="region" aria-label="Quick actions">
+          <div className="movie-sticky-actions-inner">{actionButtons(true)}</div>
+        </div>
+      )}
+
+      {searchOpen && <MovieSearch onAdd={async () => ({ ok: false, message: "" })} onClose={() => setSearchOpen(false)} />}
+    </main>
+  )
+}

@@ -10,9 +10,8 @@ import {
   addToWatchlist,
 } from "@/lib/db"
 import type { Movie } from "@/lib/types"
-import { formatLanguage, getMovieDetails } from "@/lib/tmdb"
+import { formatLanguage } from "@/lib/tmdb"
 import StandingOvationInput from "@/components/StandingOvationInput"
-import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
 import FilterChip from "@/components/FilterChip"
 import { MOBILE_TAB_BAR_INSET, useIsMobile } from "@/hooks/useIsMobile"
@@ -221,69 +220,22 @@ const CARD_WIDTH = 280
 const CARD_GAP = 20
 const CARD_TOTAL = CARD_WIDTH + CARD_GAP
 
-const TMDB_GENRE_CACHE_KEY = "fdfs:watchlist:genre-cache:v1"
-
-type TMDBGenre = { id: number; name: string }
-type GenreCache = Record<string, { genres: TMDBGenre[] }>
-
-function readGenreCache(): GenreCache {
-  if (typeof window === "undefined") return {}
-  try {
-    const raw = window.sessionStorage.getItem(TMDB_GENRE_CACHE_KEY)
-    return raw ? (JSON.parse(raw) as GenreCache) : {}
-  } catch {
-    return {}
-  }
-}
-
-function writeGenreCache(cache: GenreCache) {
-  if (typeof window === "undefined") return
-  try {
-    window.sessionStorage.setItem(TMDB_GENRE_CACHE_KEY, JSON.stringify(cache))
-  } catch {
-    /* ignore */
-  }
-}
-
-async function hydrateGenreCache(
-  films: Movie[],
-  cache: GenreCache,
-  onUpdate: (next: GenreCache) => void,
-) {
-  const missing = films.filter((f) => !cache[f.id])
-  if (missing.length === 0) return
-
-  const next = { ...cache }
-  const batchSize = 8
-  for (let i = 0; i < missing.length; i += batchSize) {
-    const slice = missing.slice(i, i + batchSize)
-    await Promise.all(
-      slice.map(async (film) => {
-        try {
-          const d = await getMovieDetails(film.id)
-          if (!d?.id) return
-          next[film.id] = { genres: d.genres || [] }
-        } catch {
-          next[film.id] = { genres: [] }
-        }
-      }),
-    )
-    writeGenreCache(next)
-    onUpdate({ ...next })
-  }
-}
-
-function filmHasGenre(filmId: string, genre: string, cache: GenreCache) {
-  return (cache[filmId]?.genres || []).some((g) => g.name === genre)
+function filmHasGenre(film: Movie, genre: string) {
+  return (film.genres || []).some((g) => g.name === genre)
 }
 
 export default function WatchlistPage() {
   const [watchlist, setWatchlist] = useState<Movie[]>([])
   const [watched, setWatched] = useState<Movie[]>([])
-  const [genreCache, setGenreCache] = useState<GenreCache>({})
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const handler = () => setSearchOpen(true)
+    window.addEventListener("fdfs:open-search", handler)
+    return () => window.removeEventListener("fdfs:open-search", handler)
+  }, [])
   const [centeredIndex, setCenteredIndex] = useState(0)
   const [ambientRgb, setAmbientRgb] = useState<[number, number, number]>(DEFAULT_AMBIENT)
   const [isSpinning, setIsSpinning] = useState(false)
@@ -311,14 +263,7 @@ export default function WatchlistPage() {
       if (!active) return
       setWatchlist(films)
       setWatched(seen)
-      const cache = readGenreCache()
-      setGenreCache(cache)
       setLoading(false)
-      const toHydrate = [...films, ...seen.slice(0, 12)]
-      const unique = Array.from(new Map(toHydrate.map((m) => [m.id, m])).values())
-      hydrateGenreCache(unique, cache, (next) => {
-        if (active) setGenreCache(next)
-      })
     }
     load()
     return () => {
@@ -337,7 +282,7 @@ export default function WatchlistPage() {
 
     const counts = new Map<string, number>()
     for (const film of recent) {
-      for (const g of genreCache[film.id]?.genres || []) {
+      for (const g of film.genres || []) {
         counts.set(g.name, (counts.get(g.name) || 0) + 1)
       }
     }
@@ -345,18 +290,16 @@ export default function WatchlistPage() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([name]) => name)
-  }, [watched, genreCache])
+  }, [watched])
 
   const pickPoolIndices = useMemo(() => {
     if (!selectedGenre) {
       return watchlist.map((_, i) => i)
     }
     return watchlist
-      .map((film, i) =>
-        filmHasGenre(film.id, selectedGenre, genreCache) ? i : -1,
-      )
+      .map((film, i) => (filmHasGenre(film, selectedGenre) ? i : -1))
       .filter((i) => i >= 0)
-  }, [watchlist, selectedGenre, genreCache])
+  }, [watchlist, selectedGenre])
 
   const modalBottom = isMobile
     ? `calc(${MOBILE_TAB_BAR_INSET} + 16px)`
@@ -728,7 +671,6 @@ export default function WatchlistPage() {
         }}
       />
 
-      <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
 
       {watchlist.length === 0 ? (
         <div

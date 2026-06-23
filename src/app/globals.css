@@ -546,12 +546,169 @@ a,
   line-height: 0.92;
 }
 
+/* ─── Movie detail page ─── */
+@keyframes movieSkeletonPulse {
+  0%,
+  100% {
+    opacity: 0.32;
+  }
+  50% {
+    opacity: 0.58;
+  }
+}
+
+@keyframes movieBtnSavedPop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes movieStickyBarIn {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes moviePanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.movie-action-skeleton {
+  height: 40px;
+  border-radius: 999px;
+  background: var(--tint-base);
+  border: 1px solid var(--border-hairline);
+  animation: movieSkeletonPulse 1.15s ease-in-out infinite;
+}
+
+.movie-btn-saved {
+  background: rgba(52, 211, 153, 0.92) !important;
+  border-color: rgba(52, 211, 153, 0.55) !important;
+  color: #0a1612 !important;
+  animation: movieBtnSavedPop 0.45s var(--ease-decelerate);
+  transition:
+    background 0.4s var(--ease-decelerate),
+    border-color 0.4s var(--ease-decelerate),
+    color 0.4s var(--ease-decelerate);
+}
+
+.movie-sticky-actions {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 44;
+  padding: 10px 16px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(
+    to top,
+    rgba(12, 12, 16, 0.97) 0%,
+    rgba(12, 12, 16, 0.92) 55%,
+    rgba(12, 12, 16, 0) 100%
+  );
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: movieStickyBarIn 0.38s var(--ease-decelerate) both;
+  pointer-events: none;
+}
+
+.movie-sticky-actions-inner {
+  pointer-events: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+@media (min-width: 769px) {
+  .movie-sticky-actions {
+    bottom: 0;
+    padding-bottom: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .movie-sticky-actions {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.movie-panel-in {
+  animation: moviePanelIn 0.42s var(--ease-decelerate) both;
+}
+
+/* Collapsible back button (movie detail) */
+.back-btn-collapsible {
+  transition:
+    width 0.32s var(--ease-decelerate),
+    padding 0.32s var(--ease-decelerate),
+    gap 0.32s var(--ease-decelerate),
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.back-btn-collapsible .back-btn-label {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 3.5rem;
+  opacity: 1;
+  transition:
+    max-width 0.32s var(--ease-decelerate),
+    opacity 0.22s var(--ease-decelerate),
+    margin 0.32s var(--ease-decelerate);
+}
+
+.back-btn-collapsible.back-btn-collapsed .back-btn-label {
+  max-width: 0;
+  opacity: 0;
+  margin-left: 0;
+}
+
+.movie-rating-panel-in {
+  animation: moviePanelIn 0.35s var(--ease-decelerate) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .mobile-tab-bar,
   .mobile-top-bar-enter,
   .mobile-stagger-in,
-  .mobile-tab-icon-active {
+  .mobile-tab-icon-active,
+  .movie-sticky-actions,
+  .movie-panel-in,
+  .movie-rating-panel-in,
+  .movie-btn-saved {
     animation: none !important;
+  }
+
+  .back-btn-collapsible,
+  .back-btn-collapsible .back-btn-label {
+    transition: none !important;
+  }
+
+  .movie-action-skeleton {
+    animation: none !important;
+    opacity: 0.45;
   }
 
   .mobile-tab-indicator {

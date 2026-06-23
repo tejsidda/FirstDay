@@ -19,6 +19,7 @@ function authHeaders(): HeadersInit {
 
 const CACHE_1H = { next: { revalidate: 3600 } } as const
 
+<<<<<<< HEAD
 function proxyTmdbImage(url: string) {
   return `/api/poster-proxy?url=${encodeURIComponent(url)}`
 }
@@ -29,6 +30,14 @@ export function posterURL(path: string, size = "w500") {
 
 export function backdropURL(path: string, size = "w1280") {
   return proxyTmdbImage(`${IMG}/${size}${path}`)
+=======
+export function posterURL(path: string, size = "w500") {
+  return `${IMG}/${size}${path}`
+}
+
+export function backdropURL(path: string, size = "w1280") {
+  return `${IMG}/${size}${path}`
+>>>>>>> ddc7a636afc9949eabd4692d96cec849a7a31fbb
 }
 
 export async function fetchMovieDetails(id: string) {
@@ -64,6 +73,7 @@ export async function fetchMovieKeywords(tmdbId: string): Promise<string[]> {
   return (data.keywords || []).map((k: { name: string }) => k.name)
 }
 
+<<<<<<< HEAD
 export async function fetchMovieImages(tmdbId: string): Promise<string[]> {
   const res = await fetch(`${BASE}/movie/${tmdbId}/images`, {
     headers: authHeaders(),
@@ -74,6 +84,112 @@ export async function fetchMovieImages(tmdbId: string): Promise<string[]> {
   return (data.backdrops || [])
     .slice(0, 3)
     .map((img: { file_path: string }) => backdropURL(img.file_path))
+=======
+const MIN_BACKDROP_WIDTH = 1280
+const MIN_BACKDROP_HEIGHT = 720
+const RELAXED_BACKDROP_WIDTH = 1000
+const RELAXED_BACKDROP_HEIGHT = 560
+const MAX_MOVIE_BACKDROPS = 3
+
+type TmdbBackdrop = {
+  file_path: string
+  width: number
+  height: number
+  vote_average?: number
+  iso_639_1?: string | null
+}
+
+export type MovieBackdropResult = {
+  urls: string[]
+  fromPoster: boolean
+}
+
+function rankBackdrops(images: TmdbBackdrop[]): TmdbBackdrop[] {
+  return [...images].sort((a, b) => {
+    const langScore = (iso: string | null | undefined) => (!iso || iso === "en" ? 1 : 0)
+    const lang = langScore(b.iso_639_1) - langScore(a.iso_639_1)
+    if (lang !== 0) return lang
+    const area = b.width * b.height - a.width * a.height
+    if (area !== 0) return area
+    return (b.vote_average ?? 0) - (a.vote_average ?? 0)
+  })
+}
+
+function pickQualified(
+  sorted: TmdbBackdrop[],
+  minW: number,
+  minH: number,
+  limit: number,
+  exclude: Set<string>
+): TmdbBackdrop[] {
+  const out: TmdbBackdrop[] = []
+  for (const img of sorted) {
+    if (img.width < minW || img.height < minH) continue
+    if (exclude.has(img.file_path)) continue
+    exclude.add(img.file_path)
+    out.push(img)
+    if (out.length >= limit) return out
+  }
+  return out
+}
+
+export async function getMovieBackdrops(
+  tmdbId: string,
+  fallback?: { posterPath?: string | null; backdropPath?: string | null }
+): Promise<MovieBackdropResult> {
+  let res: Response
+  try {
+    res = await fetch(`${BASE}/movie/${tmdbId}/images?include_image_language=en,null`, {
+      headers: authHeaders(),
+      ...CACHE_1H,
+    })
+  } catch {
+    res = new Response(null, { status: 500 })
+  }
+
+  if (!res.ok) {
+    if (fallback?.posterPath) {
+      return { urls: [posterURL(fallback.posterPath, "w1280")], fromPoster: true }
+    }
+    if (fallback?.backdropPath) {
+      return { urls: [backdropURL(fallback.backdropPath)], fromPoster: false }
+    }
+    return { urls: [], fromPoster: false }
+  }
+
+  const data = await res.json()
+  const sorted = rankBackdrops((data.backdrops || []) as TmdbBackdrop[])
+  const seen = new Set<string>()
+
+  let picks = pickQualified(sorted, MIN_BACKDROP_WIDTH, MIN_BACKDROP_HEIGHT, MAX_MOVIE_BACKDROPS, seen)
+  if (picks.length < MAX_MOVIE_BACKDROPS) {
+    picks = [
+      ...picks,
+      ...pickQualified(
+        sorted,
+        RELAXED_BACKDROP_WIDTH,
+        RELAXED_BACKDROP_HEIGHT,
+        MAX_MOVIE_BACKDROPS - picks.length,
+        seen
+      ),
+    ]
+  }
+
+  if (picks.length > 0) {
+    return {
+      urls: picks.map((img) => backdropURL(img.file_path)),
+      fromPoster: false,
+    }
+  }
+
+  if (fallback?.posterPath) {
+    return { urls: [posterURL(fallback.posterPath, "w1280")], fromPoster: true }
+  }
+  if (fallback?.backdropPath) {
+    return { urls: [backdropURL(fallback.backdropPath)], fromPoster: false }
+  }
+  return { urls: [], fromPoster: false }
+>>>>>>> ddc7a636afc9949eabd4692d96cec849a7a31fbb
 }
 
 export async function fetchPersonFilmography(personName: string) {

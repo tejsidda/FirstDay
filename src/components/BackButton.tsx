@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useIsMobile } from "@/hooks/useIsMobile"
 
@@ -14,18 +15,38 @@ export function navigateBack(router: ReturnType<typeof useRouter>) {
 
 export default function BackButton({
   style,
+  collapsible = false,
+  collapseAfter = 96,
 }: {
   style?: React.CSSProperties
+  /** Shrink to icon-only after scrolling past `collapseAfter` px */
+  collapsible?: boolean
+  collapseAfter?: number
 }) {
   const router = useRouter()
   const isMobile = useIsMobile()
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    if (!collapsible) {
+      setCollapsed(false)
+      return
+    }
+    const onScroll = () => setCollapsed(window.scrollY > collapseAfter)
+    onScroll()
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [collapsible, collapseAfter])
+
+  const expanded = !collapsible || !collapsed
+  const iconSize = expanded ? 16 : 18
 
   return (
     <button
       type="button"
       onClick={() => navigateBack(router)}
       aria-label="Go back"
-      className="t-button-sm"
+      className={`t-button-sm${collapsible ? " back-btn-collapsible" : ""}${collapsed ? " back-btn-collapsed" : ""}`}
       style={{
         position: "fixed",
         top: isMobile ? 56 : 72,
@@ -33,9 +54,17 @@ export default function BackButton({
         zIndex: 45,
         display: "inline-flex",
         alignItems: "center",
-        gap: 6,
-        padding: isMobile ? "10px 12px" : "8px 14px",
+        justifyContent: "center",
+        gap: expanded ? 6 : 0,
+        padding: expanded
+          ? isMobile
+            ? "10px 14px"
+            : "10px 16px"
+          : "10px",
+        width: expanded ? "auto" : 44,
+        height: 44,
         minHeight: 44,
+        minWidth: 44,
         borderRadius: 999,
         border: "1px solid var(--border-default)",
         background: "var(--tint-base)",
@@ -57,8 +86,8 @@ export default function BackButton({
       }}
     >
       <svg
-        width="16"
-        height="16"
+        width={iconSize}
+        height={iconSize}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -66,10 +95,11 @@ export default function BackButton({
         strokeLinecap="round"
         strokeLinejoin="round"
         aria-hidden
+        style={{ flexShrink: 0 }}
       >
         <polyline points="15 18 9 12 15 6" />
       </svg>
-      Back
+      <span className="back-btn-label">Back</span>
     </button>
   )
 }

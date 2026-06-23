@@ -11,6 +11,8 @@ export type Recommendation = {
   addedAt: string
 }
 
+export type MovieGenre = { id: number; name: string }
+
 export type Movie = {
   id: string
   title: string
@@ -18,6 +20,8 @@ export type Movie = {
   language: string
   poster: string
   backdrop?: string
+  genres?: MovieGenre[]
+  runtime?: number | null
   watchedAt?: string
   /** 1–10 scale, 0.5 increments; omit or null if unrated */
   rating?: number | null

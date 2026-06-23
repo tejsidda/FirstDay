@@ -1,6 +1,7 @@
 "use client"
 
 import type { CSSProperties } from "react"
+import { getApplauseLabel } from "@/lib/applause"
 
 /**
  * Rating display 1–10 (0.5 increments).
@@ -68,9 +69,11 @@ const sizeStyles: Record<"sm" | "md" | "lg", CSSProperties> = {
 type Props = {
   rating: number | null | undefined
   size?: "sm" | "md" | "lg"
+  /** Show phrase under the number (e.g. "Standing ovation") */
+  showLabel?: boolean
 }
 
-export default function RatingDisplay({ rating, size = "md" }: Props) {
+export default function RatingDisplay({ rating, size = "md", showLabel = false }: Props) {
   if (rating == null || Number.isNaN(rating)) {
     return (
       <span
@@ -92,17 +95,56 @@ export default function RatingDisplay({ rating, size = "md" }: Props) {
   const text = formatRating(clamped)
   const bandStyle = getRatingStyle(clamped)
 
+  const label = getApplauseLabel(clamped)
+
+  if (!showLabel) {
+    return (
+      <span
+        style={{
+          ...sizeStyles[size],
+          ...bandStyle,
+          fontStyle: "italic",
+          fontVariantNumeric: "tabular-nums",
+        }}
+        title={`${text} / 10 — ${label}`}
+      >
+        {text}
+      </span>
+    )
+  }
+
   return (
     <span
       style={{
-        ...sizeStyles[size],
-        ...bandStyle,
-        fontStyle: "italic",
-        fontVariantNumeric: "tabular-nums",
+        display: "inline-flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        gap: 2,
       }}
-      title={`Rating ${text} / 10`}
+      title={`${text} / 10`}
     >
-      {text}
+      <span
+        style={{
+          ...sizeStyles[size],
+          ...bandStyle,
+          fontStyle: "italic",
+          fontVariantNumeric: "tabular-nums",
+          lineHeight: 1.1,
+        }}
+      >
+        {text}
+      </span>
+      <span
+        className="t-caption"
+        style={{
+          color: "var(--text-dim)",
+          fontStyle: "normal",
+          fontWeight: 400,
+          letterSpacing: "0.01em",
+        }}
+      >
+        {label}
+      </span>
     </span>
   )
 }

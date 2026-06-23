@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import TopOverlayNav from "@/components/TopOverlayNav"
 import MovieSearch from "@/components/MovieSearch"
 import {
   getWatchlist,
@@ -235,6 +234,12 @@ export default function HomeContent() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [isMobile])
 
+  useEffect(() => {
+    const handler = () => setSearchOpen(true)
+    window.addEventListener("fdfs:open-search", handler)
+    return () => window.removeEventListener("fdfs:open-search", handler)
+  }, [])
+
   // Magnetic pull on the "Open details" CTA button
   useEffect(() => {
     if (isMobile) return
@@ -442,7 +447,6 @@ export default function HomeContent() {
         @keyframes blink { 50% { border-color: transparent; } }
       `}</style>
 
-      <TopOverlayNav onSearchClick={() => setSearchOpen(true)} />
 
       {/* ─────────────── HERO ─────────────── */}
       <section
