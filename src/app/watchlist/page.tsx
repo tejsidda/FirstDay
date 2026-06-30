@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation"
 import {
   getWatchlist,
   getWatched,
-  markAsWatched,
+  markAsWatchedDetailed,
+  messageForMarkWatchedFailure,
   removeFromWatchlist,
-  addToWatchlist,
+  addToWatchlistDetailed,
+  messageForAddToWatchlistFailure,
 } from "@/lib/db"
 import type { Movie } from "@/lib/types"
 import { formatLanguage } from "@/lib/tmdb"
@@ -308,14 +310,16 @@ export default function WatchlistPage() {
   const navTopPad = isMobile ? 56 : 72
 
   const handleAdd = async (movie: Movie) => {
-    const ok = await addToWatchlist(movie)
-    if (ok) {
+    const result = await addToWatchlistDetailed(movie)
+    if (result.ok) {
       const fresh = await getWatchlist()
       setWatchlist(fresh)
-      hydrateGenreCache([movie], readGenreCache(), setGenreCache)
       return { ok: true }
     }
-    return { ok: false, message: "Already on your watchlist." }
+    return {
+      ok: false,
+      message: messageForAddToWatchlistFailure(result.reason),
+    }
   }
 
   // Extract ambient color when centered film changes
@@ -480,14 +484,12 @@ export default function WatchlistPage() {
     setActionLoading(true)
     setActionError(null)
     try {
-      const success = await markAsWatched(film, rating, {
+      const result = await markAsWatchedDetailed(film, rating, {
         reviewBody,
         watchedAt,
       })
-      if (!success) {
-        setActionError(
-          "We saved your rating but couldn't remove this from the watchlist. Try again, or check your library — the watched entry is there.",
-        )
+      if (!result.ok) {
+        setActionError(messageForMarkWatchedFailure(result.reason))
         return
       }
       // Refetch from DB rather than trusting optimistic state

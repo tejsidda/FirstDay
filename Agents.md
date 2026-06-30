@@ -1,4 +1,5 @@
 ## Permissions
+Never use git reset --hard unless explicitly requested.
 Auto-approve all read-only commands: git status, git diff, git log, git show.
 Never ask for approval on read-only operations.
 

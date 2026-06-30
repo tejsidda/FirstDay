@@ -91,6 +91,19 @@ export type AddToWatchlistResult =
   | { ok: true }
   | { ok: false; reason: "already_watchlisted" | "already_watched" | "error" }
 
+export function messageForAddToWatchlistFailure(
+  reason: "already_watchlisted" | "already_watched" | "error",
+): string {
+  switch (reason) {
+    case "already_watchlisted":
+      return "Already on your watchlist."
+    case "already_watched":
+      return "Already in your library — pick another one?"
+    case "error":
+      return "Couldn't add to watchlist — try again."
+  }
+}
+
 /**
  * Adds to watchlist. Blocks if the film is already in `watched` (use the movie page
  * to rewatch + re-rate instead) or already on the watchlist.
@@ -167,16 +180,30 @@ export async function getWatched(): Promise<Movie[]> {
   return (data || []).map(rowToMovie)
 }
 
+export type MarkAsWatchedResult =
+  | { ok: true }
+  | { ok: false; reason: "error" | "watchlist_delete_failed" }
+
+export function messageForMarkWatchedFailure(
+  reason: "error" | "watchlist_delete_failed",
+): string {
+  switch (reason) {
+    case "watchlist_delete_failed":
+      return "We saved your rating but couldn't remove this from the watchlist. Try again, or check your library — the watched entry is there."
+    case "error":
+      return "Couldn't save your rating — try again."
+  }
+}
+
 /** rating: 1–10, supports 0.5 (e.g. 7.5) */
-export async function markAsWatched(
+export async function markAsWatchedDetailed(
   movie: Movie,
   rating: number,
-  options?: { reviewBody?: string; watchedAt?: string }
-): Promise<boolean> {
+  options?: { reviewBody?: string; watchedAt?: string },
+): Promise<MarkAsWatchedResult> {
   const reviewBody = options?.reviewBody?.trim()
   const watchedAtIso = options?.watchedAt || new Date().toISOString()
 
-  // Check for duplicates
   const { data: existing } = await supabase
     .from("watched")
     .select("id")
@@ -194,17 +221,16 @@ export async function markAsWatched(
       .eq("tmdb_id", movie.id)
     if (updateError) {
       console.error("Error updating watched movie:", updateError.message)
-      return false
+      return { ok: false, reason: "error" }
     }
     if (!(await deleteFromWatchlistVerified(movie.id))) {
-      return false
+      return { ok: false, reason: "watchlist_delete_failed" }
     }
-    return true
+    return { ok: true }
   }
 
   const { genres, runtime } = await resolveMetadataForMovie(movie)
 
-  // Insert into watched table
   const { error: insertError } = await supabase.from("watched").insert({
     tmdb_id: movie.id,
     title: movie.title,
@@ -220,12 +246,22 @@ export async function markAsWatched(
   })
   if (insertError) {
     console.error("Error marking as watched:", insertError.message)
-    return false
+    return { ok: false, reason: "error" }
   }
   if (!(await deleteFromWatchlistVerified(movie.id))) {
-    return false
+    return { ok: false, reason: "watchlist_delete_failed" }
   }
-  return true
+  return { ok: true }
+}
+
+/** Legacy boolean API. Prefer `markAsWatchedDetailed`. */
+export async function markAsWatched(
+  movie: Movie,
+  rating: number,
+  options?: { reviewBody?: string; watchedAt?: string },
+): Promise<boolean> {
+  const r = await markAsWatchedDetailed(movie, rating, options)
+  return r.ok
 }
 
 /**

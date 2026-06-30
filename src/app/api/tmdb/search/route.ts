@@ -42,5 +42,13 @@ export async function GET(req: NextRequest) {
 
   const [d1, d2] = await Promise.all([res1.json(), res2.ok ? res2.json() : { results: [] }])
 
-  return NextResponse.json([...(d1.results || []), ...(d2.results || [])])
+  const merged = [...(d1.results || []), ...(d2.results || [])]
+  const seen = new Set<number>()
+  const unique = merged.filter((m: { id: number }) => {
+    if (seen.has(m.id)) return false
+    seen.add(m.id)
+    return true
+  })
+
+  return NextResponse.json(unique)
 }

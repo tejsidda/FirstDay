@@ -1,12 +1,15 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { getWatched } from "@/lib/db"
+import {
+  getWatched,
+  addToWatchlistDetailed,
+  messageForAddToWatchlistFailure,
+} from "@/lib/db"
 import { getMovieDetails, formatLanguage } from "@/lib/tmdb"
 import type { Movie } from "@/lib/types"
 import MovieSearch from "@/components/MovieSearch"
 import FilterChip from "@/components/FilterChip"
-import { addToWatchlist } from "@/lib/db"
 import { useIsMobile, MOBILE_TAB_BAR_INSET } from "@/hooks/useIsMobile"
 
 const TMDB_CACHE_KEY = "fdfs:wrapped:tmdb-cache:v1"
@@ -170,9 +173,12 @@ export default function WrappedPage() {
   const stats = useMemo(() => computeStats(scoped, tmdbCache), [scoped, tmdbCache])
 
   const handleAdd = async (movie: Movie) => {
-    const ok = await addToWatchlist(movie)
-    if (ok) return { ok: true }
-    return { ok: false, message: "Already on your list." }
+    const result = await addToWatchlistDetailed(movie)
+    if (result.ok) return { ok: true }
+    return {
+      ok: false,
+      message: messageForAddToWatchlistFailure(result.reason),
+    }
   }
 
   if (loading) {

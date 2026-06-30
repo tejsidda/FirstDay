@@ -7,7 +7,8 @@ import MovieSearch from "@/components/MovieSearch"
 import {
   getWatchlist,
   getWatched,
-  addToWatchlist,
+  addToWatchlistDetailed,
+  messageForAddToWatchlistFailure,
   markRecommendationShown,
   getUnshownRecommendations,
 } from "@/lib/db"
@@ -389,16 +390,17 @@ export default function HomeContent() {
   }, [heroMovie?.id])
 
   const handleAddToWatchlist = async (movie: Movie) => {
-    const alreadyInLibrary = watched.some((m) => m.id === movie.id)
-    if (alreadyInLibrary) {
-      return { ok: false, message: "Already in your library — pick another one?" }
-    }
-    const success = await addToWatchlist(movie)
-    if (success) {
-      setWatchlist((prev) => [movie, ...prev])
+    const result = await addToWatchlistDetailed(movie)
+    if (result.ok) {
+      setWatchlist((prev) =>
+        prev.some((m) => m.id === movie.id) ? prev : [movie, ...prev],
+      )
       return { ok: true }
     }
-    return { ok: false, message: "Already on your watchlist." }
+    return {
+      ok: false,
+      message: messageForAddToWatchlistFailure(result.reason),
+    }
   }
 
   const handleAddRecommendation = async (rec: Recommendation) => {
@@ -410,9 +412,13 @@ export default function HomeContent() {
       poster: rec.poster,
       backdrop: rec.backdrop || undefined,
     }
-    const success = await addToWatchlist(movie)
-    if (success) setWatchlist((prev) => [movie, ...prev])
-    await reloadRecsAfterInteraction(rec.id)
+    const result = await addToWatchlistDetailed(movie)
+    if (result.ok) {
+      setWatchlist((prev) =>
+        prev.some((m) => m.id === movie.id) ? prev : [movie, ...prev],
+      )
+      await reloadRecsAfterInteraction(rec.id)
+    }
   }
 
   const scrollWatchlistRail = (dir: "left" | "right") => {

@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { getWatched, addToWatchlist } from "@/lib/db"
+import {
+  getWatched,
+  addToWatchlistDetailed,
+  messageForAddToWatchlistFailure,
+} from "@/lib/db"
 import { PULL_REFRESH_EVENT } from "@/lib/pullToRefresh"
 import type { Movie } from "@/lib/types"
 import { formatLanguage } from "@/lib/tmdb"
@@ -145,15 +149,12 @@ export default function LibraryPage() {
   }, [])
 
   const handleAdd = async (movie: Movie) => {
-    if (watched.some((m) => m.id === movie.id)) {
-      return {
-        ok: false,
-        message: "Already in your library — pick another one?",
-      }
+    const result = await addToWatchlistDetailed(movie)
+    if (result.ok) return { ok: true }
+    return {
+      ok: false,
+      message: messageForAddToWatchlistFailure(result.reason),
     }
-    const success = await addToWatchlist(movie)
-    if (success) return { ok: true }
-    return { ok: false, message: "Already on your watchlist." }
   }
 
   const languages = [

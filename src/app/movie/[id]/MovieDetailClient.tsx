@@ -5,7 +5,14 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { getPersonFilmography, formatLanguage } from "@/lib/tmdb"
-import { addToWatchlist, removeFromWatchlist, markAsWatched, updateReview } from "@/lib/db"
+import {
+  addToWatchlistDetailed,
+  messageForAddToWatchlistFailure,
+  markAsWatchedDetailed,
+  messageForMarkWatchedFailure,
+  removeFromWatchlist,
+  updateReview,
+} from "@/lib/db"
 import type { Movie } from "@/lib/types"
 import RatingDisplay from "@/components/RatingDisplay"
 import StandingOvationInput from "@/components/StandingOvationInput"
@@ -520,11 +527,27 @@ export default function MovieDetailClient({
 
   const handleAddWatchlist = async () => {
     setBusy(true)
-    if (await addToWatchlist(movieForDb())) {
+    setActionError(null)
+    const result = await addToWatchlistDetailed(movieForDb())
+    if (result.ok) {
       setIsWatchlisted(true)
       triggerSaveFlash("watchlist-add")
+    } else {
+      setActionError(messageForAddToWatchlistFailure(result.reason))
     }
     setBusy(false)
+  }
+
+  const handleSearchAdd = async (movie: Movie) => {
+    const result = await addToWatchlistDetailed(movie)
+    if (result.ok) {
+      if (movie.id === tmdbId) setIsWatchlisted(true)
+      return { ok: true }
+    }
+    return {
+      ok: false,
+      message: messageForAddToWatchlistFailure(result.reason),
+    }
   }
 
   const handleRemoveWatchlist = async () => {
@@ -540,11 +563,11 @@ export default function MovieDetailClient({
     if (ratingValue == null) return
     setSavingRating(true)
     setActionError(null)
-    const ok = await markAsWatched(movieForDb(), ratingValue, {
+    const result = await markAsWatchedDetailed(movieForDb(), ratingValue, {
       watchedAt: watchedEarlier ? dateInputToIso(watchedDate) : new Date().toISOString(),
     })
-    if (!ok) {
-      setActionError("Couldn't fully save — try again.")
+    if (!result.ok) {
+      setActionError(messageForMarkWatchedFailure(result.reason))
       setSavingRating(false)
       return
     }
@@ -1315,7 +1338,9 @@ export default function MovieDetailClient({
         </div>
       )}
 
-      {searchOpen && <MovieSearch onAdd={async () => ({ ok: false, message: "" })} onClose={() => setSearchOpen(false)} />}
+      {searchOpen && (
+        <MovieSearch onAdd={handleSearchAdd} onClose={() => setSearchOpen(false)} />
+      )}
     </main>
   )
 }
