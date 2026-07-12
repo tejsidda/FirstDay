@@ -185,7 +185,7 @@ export default function WrappedPage() {
     return (
       <main
         className="min-h-screen flex items-center justify-center"
-        style={{ background: "var(--background-raised)" }}
+        style={{ background: "var(--background-base)" }}
       >
         <p className="t-meta" style={{ color: "var(--text-search)" }}>
           Loading…
@@ -198,7 +198,7 @@ export default function WrappedPage() {
     return (
       <main
         className="min-h-screen page-with-mobile-tabs"
-        style={{ background: "var(--background-raised)" }}
+        style={{ background: "var(--background-base)" }}
       >
         <div
           style={{
@@ -240,7 +240,7 @@ export default function WrappedPage() {
   return (
     <main
       className="min-h-screen page-with-mobile-tabs"
-      style={{ background: "var(--background-raised)" }}
+      style={{ background: "var(--background-base)" }}
     >
 
       {/* ── Masthead ── */}

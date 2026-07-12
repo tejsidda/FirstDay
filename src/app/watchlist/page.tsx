@@ -18,58 +18,6 @@ import MovieSearch from "@/components/MovieSearch"
 import FilterChip from "@/components/FilterChip"
 import { MOBILE_TAB_BAR_INSET, useIsMobile } from "@/hooks/useIsMobile"
 
-const DEFAULT_AMBIENT: [number, number, number] = [45, 38, 28]
-
-function extractAmbientRgb(imageUrl: string): Promise<[number, number, number]> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.crossOrigin = "anonymous"
-    img.onload = () => {
-      const canvas = document.createElement("canvas")
-      canvas.width = 24
-      canvas.height = 24
-      const ctx = canvas.getContext("2d")
-      if (!ctx) {
-        img.onload = null
-        img.onerror = null
-        resolve(DEFAULT_AMBIENT)
-        return
-      }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-      let pixels: Uint8ClampedArray
-      try {
-        pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data
-      } catch {
-        img.onload = null
-        img.onerror = null
-        resolve(DEFAULT_AMBIENT)
-        return
-      }
-      let r = 0, g = 0, b = 0, count = 0
-      for (let i = 0; i < pixels.length; i += 4) {
-        if (pixels[i + 3] < 16) continue
-        r += pixels[i]; g += pixels[i + 1]; b += pixels[i + 2]; count++
-      }
-      if (count === 0) {
-        img.onload = null
-        img.onerror = null
-        resolve(DEFAULT_AMBIENT)
-        return
-      }
-      const soften = (v: number) => Math.max(20, Math.min(190, Math.round(v * 0.82 + 14)))
-      img.onload = null
-      img.onerror = null
-      resolve([soften(r / count), soften(g / count), soften(b / count)])
-    }
-    img.onerror = () => {
-      img.onload = null
-      img.onerror = null
-      resolve(DEFAULT_AMBIENT)
-    }
-    img.src = imageUrl
-  })
-}
-
 function FilmFrame({
   film,
   isCentered,
@@ -95,7 +43,7 @@ function FilmFrame({
     >
       <div
         style={{
-          background: "var(--background-watchlist-panel)",
+          background: "var(--background-base)",
           borderRadius: 4,
           padding: "12px 8px 14px 8px",
           boxShadow: isCentered
@@ -239,7 +187,6 @@ export default function WatchlistPage() {
     return () => window.removeEventListener("fdfs:open-search", handler)
   }, [])
   const [centeredIndex, setCenteredIndex] = useState(0)
-  const [ambientRgb, setAmbientRgb] = useState<[number, number, number]>(DEFAULT_AMBIENT)
   const [isSpinning, setIsSpinning] = useState(false)
   const [showRating, setShowRating] = useState(false)
   const [showReviewStep, setShowReviewStep] = useState(false)
@@ -252,7 +199,6 @@ export default function WatchlistPage() {
   const [copyHint, setCopyHint] = useState<string | null>(null)
   const router = useRouter()
   const stripRef = useRef<HTMLDivElement>(null)
-  const ambientCacheRef = useRef<Record<string, [number, number, number]>>({})
   const scrollTickingRef = useRef(false)
   const copyHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMobile = useIsMobile()
@@ -321,27 +267,6 @@ export default function WatchlistPage() {
       message: messageForAddToWatchlistFailure(result.reason),
     }
   }
-
-  // Extract ambient color when centered film changes
-  useEffect(() => {
-    if (watchlist.length === 0) return
-    const film = watchlist[centeredIndex]
-    if (!film) return
-
-    const cached = ambientCacheRef.current[film.id]
-    if (cached) {
-      setAmbientRgb(cached)
-      return
-    }
-
-    let cancelled = false
-    extractAmbientRgb(film.poster).then((rgb) => {
-      if (cancelled) return
-      ambientCacheRef.current[film.id] = rgb
-      setAmbientRgb(rgb)
-    })
-    return () => { cancelled = true }
-  }, [centeredIndex, watchlist])
 
   useEffect(() => {
     setShowRating(false)
@@ -621,8 +546,6 @@ export default function WatchlistPage() {
     requestAnimationFrame(animate)
   }, [isSpinning, watchlist.length, pickPoolIndices])
 
-  const ambientColor = `rgba(${ambientRgb[0]},${ambientRgb[1]},${ambientRgb[2]},0.25)`
-
   if (loading) {
     return (
       <main
@@ -631,7 +554,7 @@ export default function WatchlistPage() {
           width: "100vw",
           height: "100vh",
           overflow: "hidden",
-          background: "var(--background-watchlist)",
+          background: "var(--background-base)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -652,7 +575,7 @@ export default function WatchlistPage() {
         width: "100vw",
         height: "100vh",
         overflow: "hidden",
-        background: "var(--background-watchlist)",
+        background: "var(--background-base)",
         display: watchlist.length > 0 ? "flex" : "block",
         flexDirection: watchlist.length > 0 ? "column" : undefined,
       }}
@@ -662,13 +585,12 @@ export default function WatchlistPage() {
         .no-snap { scroll-snap-type: none !important; }
       `}</style>
 
-      {/* Ambient background */}
+      {/* Flat canvas — poster color handled locally on cards, not global ambient */}
       <div
         style={{
           position: "fixed",
           inset: 0,
-          background: `radial-gradient(ellipse at 50% 50%, ${ambientColor} 0%, var(--background-watchlist) 70%)`,
-          transition: "background 1.2s ease-in-out",
+          background: "var(--background-base)",
           zIndex: 0,
         }}
       />

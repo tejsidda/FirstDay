@@ -20,17 +20,17 @@ import MovieSearch from "@/components/MovieSearch"
 import { useIsMobile, MOBILE_TAB_BAR_INSET } from "@/hooks/useIsMobile"
 
 const CAST_PREVIEW = 12
-const BG = "#0c0c10"
+const BG = "#141414"
 const SAVE_FLASH_MS = 1200
 
 const GRAD = {
-  left: `linear-gradient(to right, ${BG} 0%, ${BG} 40%, rgba(12,12,16,0.90) 52%, rgba(12,12,16,0.55) 66%, rgba(12,12,16,0.12) 82%, transparent 100%)`,
-  right: `linear-gradient(to left,  ${BG} 0%, ${BG} 40%, rgba(12,12,16,0.90) 52%, rgba(12,12,16,0.55) 66%, rgba(12,12,16,0.12) 82%, transparent 100%)`,
+  left: `linear-gradient(to right, ${BG} 0%, ${BG} 40%, rgba(20,20,20,0.90) 52%, rgba(20,20,20,0.55) 66%, rgba(20,20,20,0.12) 82%, transparent 100%)`,
+  right: `linear-gradient(to left,  ${BG} 0%, ${BG} 40%, rgba(20,20,20,0.90) 52%, rgba(20,20,20,0.55) 66%, rgba(20,20,20,0.12) 82%, transparent 100%)`,
   topBottom: `linear-gradient(to bottom, ${BG} 0%, transparent 11%, transparent 89%, ${BG} 100%)`,
 }
 
 const MOBILE_GRAD = {
-  scrim: `linear-gradient(to bottom, ${BG} 0%, rgba(12,12,16,0.72) 28%, rgba(12,12,16,0.88) 72%, ${BG} 100%)`,
+  scrim: `linear-gradient(to bottom, ${BG} 0%, rgba(20,20,20,0.72) 28%, rgba(20,20,20,0.88) 72%, ${BG} 100%)`,
 }
 
 type TMDBMovie = {
@@ -102,7 +102,7 @@ function PosterFallback({ title }: { title?: string }) {
         alignItems: "center",
         justifyContent: "center",
         padding: 16,
-        background: "linear-gradient(145deg,var(--background-elevated),var(--background-sunken))",
+        background: "var(--background-elevated)",
         color: "var(--text-faint-ui)",
         textAlign: "center",
       }}

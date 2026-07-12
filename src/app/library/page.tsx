@@ -186,7 +186,7 @@ export default function LibraryPage() {
     return (
       <main
         className="min-h-screen flex items-center justify-center"
-        style={{ background: "var(--background-library)" }}
+        style={{ background: "var(--background-base)" }}
       >
         <p className="t-meta" style={{ color: "var(--text-search)" }}>
           Loading your library…
@@ -198,21 +198,8 @@ export default function LibraryPage() {
   return (
     <main
       className="min-h-screen page-with-mobile-tabs"
-      style={{ background: "var(--background-library)" }}
+      style={{ background: "var(--background-base)" }}
     >
-
-      {/* Ambient gradient — scoped to top of page */}
-      <div
-        style={{
-          position: "absolute",
-          inset: "0 0 auto 0",
-          height: 700,
-          background:
-            "radial-gradient(ellipse at 50% 20%, rgba(80,100,180,0.06) 0%, transparent 65%)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
 
       {/* Masthead */}
       <header
@@ -269,7 +256,7 @@ export default function LibraryPage() {
             justifyContent: "center",
             gap: 12,
             padding: isMobile ? "14px 16px" : "16px 56px",
-            background: "var(--background-library)",
+            background: "var(--background-base)",
             borderBottom: "1px solid var(--border-default)",
             flexWrap: "wrap",
           }}

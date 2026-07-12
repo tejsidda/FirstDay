@@ -24,7 +24,7 @@ export default async function MovieDetailPage({
   // Fallback if movie not found
   if (!movie) {
     return (
-      <main className="min-h-screen flex items-center justify-center" style={{ background: "#0c0c10" }}>
+      <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--background-base)" }}>
         <p className="t-meta" style={{ color: "var(--text-search)" }}>Movie not found.</p>
       </main>
     )

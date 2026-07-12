@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Playfair_Display } from "next/font/google";
+import { ViewTransitions } from "next-view-transitions";
 import "./globals.css";
 import NavWrapper from "@/components/NavWrapper";
 import PullToRefresh from "@/components/PullToRefresh";
@@ -39,10 +40,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${playfair.variable} antialiased`}
         style={{ background: "var(--background-base)" }}
       >
-        <NavWrapper />
-        <PullToRefresh />
-        <NavigateBackListener />
-        {children}
+        <ViewTransitions>
+          <NavWrapper />
+          <PullToRefresh />
+          <NavigateBackListener />
+          {children}
+        </ViewTransitions>
       </body>
     </html>
   );

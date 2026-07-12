@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import LandingCinematicShell from "@/components/cinematic/LandingCinematicShell";
 import { supabase } from "@/lib/supabase";
 
 // ─── Phase flow: "intro" → (tap) → "login" → (valid sign in) → "success" → redirect to /home
@@ -197,36 +198,9 @@ export default function LandingPage() {
   const showLoginContent = phase === "login" || loginStarted || loginExiting;
 
   return (
-    <main
-      className="relative h-screen w-screen overflow-hidden text-white"
-      style={{ fontFamily: "var(--font-display)", background: "var(--background-base)" }}
-      onClick={handleMainClick}
-    >
-      {/* Background: poster grid. Change opacity-[0.06] for stronger/softer posters; kenburns = slow zoom/drift (see CSS). */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="grid grid-cols-5 gap-6 opacity-[0.06] blur-sm scale-110 kenburns">
-          {POSTERS.concat(POSTERS).map((src, i) => (
-            <img
-              key={i}
-              src={src}
-              className="w-full object-cover rounded-md"
-              alt=""
-            />
-          ))}
-        </div>
-        {/* Warm glow + vignette. Edit the radial-gradient values to change darkness or gold tint. */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse at center, rgba(212,175,55,0.02) 0%, transparent 60%), radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.75) 78%, var(--background-base) 100%)",
-          }}
-        />
-      </div>
-
-      {/* Film grain overlay: opacity and animation are in the <style> block (.film-grain). */}
-      <div className="pointer-events-none absolute inset-0 opacity-[0.05] mix-blend-soft-light film-grain" />
-
+    <LandingCinematicShell posters={POSTERS}>
+      {() => (
+    <div className="h-full w-full overflow-hidden" onClick={handleMainClick}>
       {/* INTRO: centered copy + cycling quote. min-h below prevents quote from being clipped. */}
       {showIntroContent && (
         <div
@@ -484,11 +458,6 @@ export default function LandingPage() {
           animation: intro-prompt 3s ease-in-out infinite;
         }
 
-        /* Background drift: change 36s for slower/faster Ken Burns effect. */
-        .kenburns {
-          animation: kenburns 36s ease-in-out infinite alternate;
-        }
-
         /* Login card enter: duration and translateY are in keyframes below; edit for different entrance feel. */
         .login-card-appear {
           animation: login-card-appear 0.6s ease-out both;
@@ -545,15 +514,6 @@ export default function LandingPage() {
           }
         }
 
-        @keyframes kenburns {
-          0% {
-            transform: scale(1.05) translateY(0px);
-          }
-          100% {
-            transform: scale(1.1) translateY(-20px);
-          }
-        }
-
         @keyframes login-card-appear {
           0% {
             opacity: 0;
@@ -587,24 +547,9 @@ export default function LandingPage() {
           }
         }
 
-        .film-grain {
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.9'/%3E%3C/svg%3E");
-          background-size: 160px 160px;
-          animation: grainMove 0.5s steps(1) infinite;
-        }
-
-        @keyframes grainMove {
-          0% {
-            background-position: 0 0;
-          }
-          50% {
-            background-position: 40px -40px;
-          }
-          100% {
-            background-position: -40px 40px;
-          }
-        }
       `}</style>
-    </main>
+    </div>
+      )}
+    </LandingCinematicShell>
   );
 }
