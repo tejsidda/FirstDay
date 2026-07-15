@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+﻿import { createBrowserClient } from "@supabase/ssr"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -27,9 +27,13 @@ if (process.env.NODE_ENV === "development" && supabaseUrl && supabaseKey) {
   const keyRef = projectRefFromAnonKey(supabaseKey)
   if (urlRef && keyRef && urlRef !== keyRef) {
     console.error(
-      `Supabase config mismatch: URL is for project "${urlRef}" but anon key is for "${keyRef}". Both must come from the same project in Supabase → Settings → API.`
+      `Supabase config mismatch: URL is for project "${urlRef}" but anon key is for "${keyRef}". Both must come from the same project in Supabase → Settings → API.`,
     )
   }
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export function createClient() {
+  return createBrowserClient(supabaseUrl, supabaseKey)
+}
+
+export const supabase = createClient()

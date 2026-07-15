@@ -1,6 +1,15 @@
-import { supabase } from "./supabase"
+import { supabase } from "./supabase/client"
 import { getMovieDetails, type MovieGenre } from "./tmdb"
 import { Movie, type Recommendation } from "./types"
+
+async function getCurrentUserId(): Promise<string | null> {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
+  if (error || !user) return null
+  return user.id
+}
 
 type MovieRow = {
   tmdb_id: string
@@ -129,9 +138,13 @@ export async function addToWatchlistDetailed(
     return { ok: false, reason: "already_watchlisted" }
   }
 
+  const userId = await getCurrentUserId()
+  if (!userId) return { ok: false, reason: "error" }
+
   const { genres, runtime } = await resolveMetadataForMovie(movie)
 
   const { error } = await supabase.from("watchlist").insert({
+    user_id: userId,
     tmdb_id: movie.id,
     title: movie.title,
     year: movie.year,
@@ -229,9 +242,13 @@ export async function markAsWatchedDetailed(
     return { ok: true }
   }
 
+  const userId = await getCurrentUserId()
+  if (!userId) return { ok: false, reason: "error" }
+
   const { genres, runtime } = await resolveMetadataForMovie(movie)
 
   const { error: insertError } = await supabase.from("watched").insert({
+    user_id: userId,
     tmdb_id: movie.id,
     title: movie.title,
     year: movie.year,
@@ -429,7 +446,11 @@ export async function clearAndInsertRecommendations(
 
   if (recommendations.length === 0) return true
 
+  const userId = await getCurrentUserId()
+  if (!userId) return false
+
   const rows = recommendations.map((r) => ({
+    user_id: userId,
     tmdb_id: String(r.tmdbId),
     title: r.title,
     year: r.year,

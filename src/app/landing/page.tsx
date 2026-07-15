@@ -3,10 +3,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import LandingCinematicShell from "@/components/cinematic/LandingCinematicShell";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
 
 // ─── Phase flow: "intro" → (tap) → "login" → (valid sign in) → "success" → redirect to /home
 type Phase = "intro" | "login" | "success";
+type AuthMode = "signin" | "signup";
 
 // Background: poster image URLs. Change these to use your own assets or different TMDB IDs.
 // Opacity is set later (e.g. opacity-[0.06]); increase for a stronger poster look.
@@ -44,7 +45,9 @@ export default function LandingPage() {
   const [phase, setPhase] = useState<Phase>("intro");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showToast, setShowToast] = useState(false); // validation error toast
+  const [authMode, setAuthMode] = useState<AuthMode>("signin");
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
 
   // Intro: which quote is shown, and whether it's visible (for fade transition)
   const [introIndex, setIntroIndex] = useState(0);
@@ -82,6 +85,48 @@ export default function LandingPage() {
       if (pushTimerRef.current) window.clearTimeout(pushTimerRef.current);
     };
   }, []);
+
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) router.replace("/home");
+    };
+    checkSession();
+  }, [router]);
+
+  const showAuthError = (message: string) => {
+    setToastMessage(message);
+    setShowToast(true);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setShowToast(false), 3500);
+  };
+
+  const completeAuthSuccess = () => {
+    setShowToast(false);
+    setLoginExiting(true);
+
+    if (redirectTimerRef.current) window.clearTimeout(redirectTimerRef.current);
+    if (pushTimerRef.current) window.clearTimeout(pushTimerRef.current);
+
+    loginTimersRef.current.push(
+      window.setTimeout(() => {
+        setPhase("success");
+        setLoginExiting(false);
+        setShowRedirecting(false);
+        redirectTimerRef.current = window.setTimeout(
+          () => setShowRedirecting(true),
+          1000,
+        );
+      }, 500),
+    );
+
+    pushTimerRef.current = window.setTimeout(() => {
+      router.push("/home");
+    }, 2500);
+  };
 
   // Intro quote cycling: change 3500 to adjust how often the quote changes (ms).
   useEffect(() => {
@@ -153,9 +198,29 @@ export default function LandingPage() {
     e.stopPropagation();
 
     if (!email.trim() || !password.trim()) {
-      setShowToast(true);
-      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = window.setTimeout(() => setShowToast(false), 2500);
+      showAuthError('"Houston, we have a problem." — Apollo 13');
+      return;
+    }
+
+    if (authMode === "signup") {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password.trim(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) {
+        console.error("Sign up error:", error.message);
+        showAuthError(error.message);
+        return;
+      }
+      if (data.session) {
+        completeAuthSuccess();
+        return;
+      }
+      showAuthError("Check your email to confirm your account, then sign in.");
+      setAuthMode("signin");
       return;
     }
 
@@ -165,33 +230,11 @@ export default function LandingPage() {
     });
     if (error) {
       console.error("Sign in error:", error.message);
-      setShowToast(true);
-      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = window.setTimeout(() => setShowToast(false), 2500);
+      showAuthError(error.message);
       return;
     }
 
-    setShowToast(false);
-    setLoginExiting(true);
-
-    if (redirectTimerRef.current) window.clearTimeout(redirectTimerRef.current);
-    if (pushTimerRef.current) window.clearTimeout(pushTimerRef.current);
-
-    loginTimersRef.current.push(
-      window.setTimeout(() => {
-        setPhase("success");
-        setLoginExiting(false);
-        setShowRedirecting(false);
-        redirectTimerRef.current = window.setTimeout(
-          () => setShowRedirecting(true),
-          1000,
-        );
-      }, 500),
-    );
-
-    pushTimerRef.current = window.setTimeout(() => {
-      router.push("/home");
-    }, 2500);
+    completeAuthSuccess();
   };
 
   const showIntroContent = phase === "intro";
@@ -294,10 +337,12 @@ export default function LandingPage() {
                     >
                       {/* Card heading and subheading: edit these strings to change the welcome message. */}
                       <div className="text-[20px] font-medium text-[rgba(255,255,255,0.85)]">
-                        Welcome back.
+                        {authMode === "signin" ? "Welcome back." : "Start your diary."}
                       </div>
                       <div className="mt-[6px] text-[13px] italic leading-relaxed text-[rgba(255,255,255,0.35)]">
-                        &quot;We won&apos;t keep you waiting longer.&quot;
+                        {authMode === "signin"
+                          ? '"We won\'t keep you waiting longer."'
+                          : '"Every film you loved. Every story you kept."'}
                       </div>
 
                       <div className="h-8" />
@@ -340,7 +385,7 @@ export default function LandingPage() {
                           }}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          Sign in
+                          {authMode === "signin" ? "Sign in" : "Sign up"}
                         </button>
 
                         <div className="my-5 flex items-center gap-3">
@@ -363,10 +408,9 @@ export default function LandingPage() {
                           />
                         </div>
 
-                        <div className="flex gap-[10px]">
-                          <button
+                        <button
                             type="button"
-                            className="flex-1 rounded-[8px] border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] px-4 py-[11px] text-[12px] text-[rgba(255,255,255,0.4)] transition-all duration-300 ease-out hover:bg-[rgba(255,255,255,0.06)]"
+                            className="w-full rounded-[8px] border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] px-4 py-[11px] text-[12px] text-[rgba(255,255,255,0.4)] transition-all duration-300 ease-out hover:bg-[rgba(255,255,255,0.06)]"
                             onClick={async (e) => {
                               e.stopPropagation();
                               await supabase.auth.signInWithOAuth({
@@ -377,22 +421,39 @@ export default function LandingPage() {
                               });
                             }}
                           >
-                            Google
+                            Continue with Google
                           </button>
-                          <button
-                            type="button"
-                            className="flex-1 rounded-[8px] border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] px-4 py-[11px] text-[12px] text-[rgba(255,255,255,0.4)] transition-all duration-300 ease-out hover:bg-[rgba(255,255,255,0.06)]"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Apple
-                          </button>
-                        </div>
 
                         <div className="mt-6 text-center text-[11px] italic text-[rgba(255,255,255,0.2)]">
-                          Don&apos;t have an account?{" "}
-                          <span className="signup-link">
-                            Sign up
-                          </span>
+                          {authMode === "signin" ? (
+                            <>
+                              Don&apos;t have an account?{" "}
+                              <button
+                                type="button"
+                                className="signup-link"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAuthMode("signup");
+                                }}
+                              >
+                                Sign up
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              Already have an account?{" "}
+                              <button
+                                type="button"
+                                className="signup-link"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAuthMode("signin");
+                                }}
+                              >
+                                Sign in
+                              </button>
+                            </>
+                          )}
                         </div>
                       </form>
                     </div>
@@ -430,7 +491,7 @@ export default function LandingPage() {
       {showToast && (
         <div className="pointer-events-none fixed inset-x-0 bottom-10 z-30 flex justify-center px-4">
           <div className="pointer-events-auto rounded-[10px] border border-[rgba(255,255,255,0.06)] bg-[rgba(30,20,15,0.9)] px-6 py-[14px] text-[13px] italic text-[rgba(255,180,140,0.7)] toast">
-            "Houston, we have a problem." — Apollo 13
+            {toastMessage || '"Houston, we have a problem." — Apollo 13'}
           </div>
         </div>
       )}

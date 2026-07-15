@@ -1,6 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { supabase } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import MobileTabBar from "@/components/MobileTabBar"
@@ -50,6 +52,7 @@ export default function TopOverlayNav({
   onSearchClick?: () => void
 }) {
   const pathname = usePathname()
+  const router = useRouter()
   const isMobile = useIsMobile()
   const [scrolled, setScrolled] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -76,6 +79,11 @@ export default function TopOverlayNav({
 
   const iconWrapClass =
     "inline-flex items-center justify-center min-w-[44px] min-h-[44px] text-[color:var(--text-secondary)] hover:text-[color:var(--text-inverse)] transition-all duration-300 [transition-timing-function:var(--ease-productive)] rounded-xl hover:bg-[color:var(--tint-subtle)] active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--border-muted)]"
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.replace("/landing")
+  }
 
   const showBarBg = isMobile || scrolled
 
@@ -152,6 +160,13 @@ export default function TopOverlayNav({
                   <circle cx="11" cy="11" r="7" />
                   <line x1="16.65" y1="16.65" x2="21" y2="21" />
                 </svg>
+              </button>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="text-[14px] font-normal tracking-wide text-[color:var(--text-secondary)] transition-colors duration-300 [transition-timing-function:var(--ease-productive)] hover:text-[color:var(--text-inverse)]"
+              >
+                Sign out
               </button>
               {DESKTOP_LINKS.map((link) => (
                 <Link

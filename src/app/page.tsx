@@ -1,5 +1,10 @@
 import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 
-export default function Root() {
-  redirect("/home");
+export default async function Root() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  redirect(user ? "/home" : "/landing");
 }

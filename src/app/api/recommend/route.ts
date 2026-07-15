@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server"
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY
 const TMDB_TOKEN = process.env.TMDB_TOKEN
@@ -18,6 +19,14 @@ const LANG_MAP: Record<string, string> = {
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     if (!ANTHROPIC_KEY || !TMDB_TOKEN) {
       return NextResponse.json({ recommendations: [] })
     }

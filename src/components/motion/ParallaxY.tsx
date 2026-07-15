@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import { ensureGsap, prefersReducedMotion } from "./gsapSetup";
 
 type ParallaxYProps = {
@@ -17,6 +17,8 @@ type ParallaxYProps = {
   start?: string;
   /** ScrollTrigger end (default "bottom top"). */
   end?: string;
+  /** ScrollTrigger trigger element. Defaults to the parallax element itself. */
+  triggerRef?: RefObject<HTMLElement | null>;
 };
 
 /**
@@ -32,6 +34,7 @@ export default function ParallaxY({
   minWidth = 0,
   start = "top bottom",
   end = "bottom top",
+  triggerRef,
 }: ParallaxYProps) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -41,6 +44,7 @@ export default function ParallaxY({
     if (prefersReducedMotion()) return;
 
     const { gsap } = ensureGsap();
+    const trigger = triggerRef?.current ?? el;
 
     const ctx = gsap.context(() => {
       const create = () =>
@@ -51,7 +55,7 @@ export default function ParallaxY({
             y,
             ease: "none",
             scrollTrigger: {
-              trigger: el,
+              trigger,
               start,
               end,
               scrub,
@@ -71,7 +75,7 @@ export default function ParallaxY({
     }, el);
 
     return () => ctx.revert();
-  }, [y, scrub, minWidth, start, end]);
+  }, [y, scrub, minWidth, start, end, triggerRef]);
 
   return (
     <div ref={ref} className={className} style={style}>

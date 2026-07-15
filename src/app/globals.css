@@ -1299,3 +1299,205 @@ a,
     filter: blur(3px);
   }
 }
+
+/* Movie detail — scroll-driven backdrop reveal at native size (Mock-inspired) */
+.movie-cinematic {
+  position: relative;
+  background: #141414;
+}
+
+.movie-cinematic[data-mobile="false"],
+.movie-cinematic[data-mobile="true"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+.movie-cinematic-stage {
+  grid-column: 1;
+  grid-row: 1;
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  width: 100%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+
+.movie-cinematic-stage[data-revealed="true"] {
+  opacity: 1;
+}
+
+.movie-cinematic-frame {
+  position: absolute;
+  top: 50%;
+  width: min(52vw, 1280px);
+  max-width: calc(100% - 40px);
+  aspect-ratio: 16 / 9;
+  transform: translateY(-50%);
+  overflow: hidden;
+  transition:
+    left 0.55s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    right 0.55s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    transform 0.55s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  -webkit-mask-image: radial-gradient(
+    ellipse 96% 92% at 50% 50%,
+    #000 38%,
+    rgba(0, 0, 0, 0.72) 58%,
+    rgba(0, 0, 0, 0.28) 78%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 96% 92% at 50% 50%,
+    #000 38%,
+    rgba(0, 0, 0, 0.72) 58%,
+    rgba(0, 0, 0, 0.28) 78%,
+    transparent 100%
+  );
+}
+
+.movie-cinematic-frame[data-side="right"] {
+  right: clamp(16px, 2.5vw, 48px);
+  left: auto;
+}
+
+.movie-cinematic-frame[data-side="left"] {
+  left: clamp(16px, 2.5vw, 48px);
+  right: auto;
+}
+
+.movie-cinematic-frame[data-side="center"] {
+  left: 50%;
+  right: auto;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(94vw, 1280px);
+}
+
+.movie-cinematic-backdrop-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  opacity: 0;
+  filter: brightness(0.84) saturate(1.08);
+  -webkit-mask-image: radial-gradient(
+    ellipse 94% 90% at 50% 50%,
+    #000 42%,
+    rgba(0, 0, 0, 0.55) 68%,
+    transparent 100%
+  );
+  mask-image: radial-gradient(
+    ellipse 94% 90% at 50% 50%,
+    #000 42%,
+    rgba(0, 0, 0, 0.55) 68%,
+    transparent 100%
+  );
+}
+
+.movie-cinematic-backdrop-img[data-poster="true"] {
+  filter: blur(14px) brightness(0.42) saturate(1.05);
+}
+
+.movie-cinematic-stage-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 100% 96% at 50% 50%,
+      transparent 32%,
+      rgba(20, 20, 20, 0.22) 58%,
+      rgba(20, 20, 20, 0.62) 82%,
+      #141414 100%
+    );
+}
+
+.movie-cinematic-track {
+  grid-column: 1;
+  grid-row: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.movie-cinematic-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 78svh;
+  padding: 88px clamp(20px, 4vw, 56px) 56px;
+  box-sizing: border-box;
+}
+
+.movie-cinematic-panel--left {
+  width: 100%;
+  max-width: min(46vw, 620px);
+  margin-right: auto;
+}
+
+.movie-cinematic-panel--right {
+  width: 100%;
+  max-width: min(46vw, 620px);
+  margin-left: auto;
+}
+
+.movie-cinematic-panel__content {
+  position: relative;
+  z-index: 1;
+}
+
+.movie-cinematic-panel__content[data-chapter-intro="true"] {
+  opacity: 0;
+  transform: translateY(18px);
+}
+
+.movie-cinematic[data-mobile="true"] .movie-cinematic-stage {
+  height: 34svh;
+  min-height: 200px;
+  max-height: 300px;
+}
+
+.movie-cinematic-stage--mobile .movie-cinematic-stage-scrim {
+  background:
+    linear-gradient(to bottom, transparent 28%, rgba(20, 20, 20, 0.45) 62%, #141414 100%),
+    radial-gradient(
+      ellipse 98% 94% at 50% 42%,
+      transparent 34%,
+      rgba(20, 20, 20, 0.45) 72%,
+      #141414 100%
+    );
+}
+
+.movie-cinematic[data-mobile="true"] .movie-cinematic-track {
+  padding-top: 34svh;
+}
+
+.movie-cinematic-panel--mobile {
+  min-height: auto;
+  padding: 28px 20px 36px;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.movie-cinematic-panel--mobile:first-of-type {
+  padding-top: 24px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .movie-cinematic-backdrop-img,
+  .movie-cinematic-stage,
+  .movie-cinematic-frame {
+    transition: none;
+  }
+
+  .movie-cinematic-panel__content[data-chapter-intro="true"] {
+    opacity: 1;
+    transform: none;
+  }
+}

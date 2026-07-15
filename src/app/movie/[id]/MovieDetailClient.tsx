@@ -1,9 +1,9 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase/client"
 import { getPersonFilmography, formatLanguage } from "@/lib/tmdb"
 import {
   addToWatchlistDetailed,
@@ -17,21 +17,19 @@ import type { Movie } from "@/lib/types"
 import RatingDisplay from "@/components/RatingDisplay"
 import StandingOvationInput from "@/components/StandingOvationInput"
 import MovieSearch from "@/components/MovieSearch"
+import { ensureGsap, prefersReducedMotion } from "@/components/motion/gsapSetup"
 import { useIsMobile, MOBILE_TAB_BAR_INSET } from "@/hooks/useIsMobile"
+import {
+  backdropSide,
+  dateInputToIso,
+  monthYear,
+  ratingNumber,
+  todayDateInput,
+} from "./movieDetailUtils"
 
 const CAST_PREVIEW = 12
 const BG = "#141414"
 const SAVE_FLASH_MS = 1200
-
-const GRAD = {
-  left: `linear-gradient(to right, ${BG} 0%, ${BG} 40%, rgba(20,20,20,0.90) 52%, rgba(20,20,20,0.55) 66%, rgba(20,20,20,0.12) 82%, transparent 100%)`,
-  right: `linear-gradient(to left,  ${BG} 0%, ${BG} 40%, rgba(20,20,20,0.90) 52%, rgba(20,20,20,0.55) 66%, rgba(20,20,20,0.12) 82%, transparent 100%)`,
-  topBottom: `linear-gradient(to bottom, ${BG} 0%, transparent 11%, transparent 89%, ${BG} 100%)`,
-}
-
-const MOBILE_GRAD = {
-  scrim: `linear-gradient(to bottom, ${BG} 0%, rgba(20,20,20,0.72) 28%, rgba(20,20,20,0.88) 72%, ${BG} 100%)`,
-}
 
 type TMDBMovie = {
   id: number
@@ -71,26 +69,6 @@ type Props = {
 
 type SaveFlash = "watchlist-add" | "watchlist-remove" | "rating" | "review" | null
 
-function ratingNumber(r: unknown): number | null {
-  if (r == null || r === "") return null
-  const n = Number(r)
-  return Number.isFinite(n) ? n : null
-}
-function monthYear(date?: string) {
-  if (!date) return "Unknown"
-  const d = new Date(date)
-  return Number.isNaN(d.getTime()) ? "Unknown" : d.toLocaleDateString("en-US", { month: "long", year: "numeric" })
-}
-function todayDateInput() {
-  const n = new Date()
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`
-}
-function dateInputToIso(v: string) {
-  const [y, m, d] = v.split("-").map(Number)
-  if (!y || !m || !d) return new Date().toISOString()
-  return new Date(y, m - 1, d, 12).toISOString()
-}
-
 function PosterFallback({ title }: { title?: string }) {
   return (
     <div
@@ -112,97 +90,67 @@ function PosterFallback({ title }: { title?: string }) {
   )
 }
 
-function SectionShell({
-  idx,
-  textSide,
-  minH = "100svh",
-  isMobile,
+function BackdropStage({
+  backdrops,
   revealed,
-  backdropSrc,
-  posterFallback = false,
-  sectionColor,
-  children,
+  posterFallback,
+  isMobile = false,
+  initialSide = "right",
 }: {
-  idx: number
-  textSide: "left" | "right"
-  minH?: string
-  isMobile: boolean
+  backdrops: string[]
   revealed: boolean
-  backdropSrc?: string
-  posterFallback?: boolean
-  sectionColor: string | null
-  children: ReactNode
+  posterFallback: boolean
+  isMobile?: boolean
+  initialSide?: "left" | "right" | "center"
 }) {
-  const motion = revealed ? "scale(1)" : "scale(1.06)"
-  const contentMotion = revealed ? "translateY(0)" : "translateY(22px)"
-  const useCover = isMobile || posterFallback
+  if (!backdrops.length) return null
 
   return (
-    <section data-section={idx} style={{ position: "relative", minHeight: minH, zIndex: 1 }}>
-      {backdropSrc && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage: `url(${backdropSrc})`,
-            backgroundSize: useCover ? "cover" : "52% auto",
-            backgroundPosition: useCover
-              ? "center 30%"
-              : textSide === "left"
-                ? "right center"
-                : "left center",
-            backgroundRepeat: "no-repeat",
-            filter: posterFallback
-              ? "blur(14px) brightness(0.38) saturate(1.15)"
-              : isMobile
-                ? "brightness(0.42) saturate(1.1)"
-                : "brightness(0.78) saturate(1.2)",
-            transform: posterFallback ? "scale(1.1)" : motion,
-            opacity: revealed ? 1 : 0,
-            transition: posterFallback
-              ? "opacity 1s ease, transform 1.2s cubic-bezier(0.25,0.46,0.45,0.94)"
-              : "opacity 1s ease, transform 1.2s cubic-bezier(0.25,0.46,0.45,0.94)",
-          }}
-        />
-      )}
-      {sectionColor && !isMobile && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: `radial-gradient(ellipse 60% 80% at ${textSide === "left" ? "75%" : "25%"} 50%, rgba(${sectionColor},0.28) 0%, transparent 70%)`,
-            pointerEvents: "none",
-            transition: "background 1.8s ease",
-          }}
-        />
-      )}
-      {isMobile ? (
-        <div style={{ position: "absolute", inset: 0, background: MOBILE_GRAD.scrim, pointerEvents: "none" }} />
-      ) : (
-        <>
-          <div style={{ position: "absolute", inset: 0, background: GRAD[textSide], pointerEvents: "none" }} />
-          <div style={{ position: "absolute", inset: 0, background: GRAD.topBottom, pointerEvents: "none" }} />
-        </>
-      )}
+    <aside
+      className={`movie-cinematic-stage${isMobile ? " movie-cinematic-stage--mobile" : ""}`}
+      data-revealed={revealed ? "true" : "false"}
+      aria-hidden
+    >
+      <div className="movie-cinematic-frame" data-side={initialSide}>
+        {backdrops.map((src, i) => (
+          <img
+            key={`${src}-${i}`}
+            src={src}
+            alt=""
+            className="movie-cinematic-backdrop-img"
+            data-poster={posterFallback ? "true" : "false"}
+            draggable={false}
+          />
+        ))}
+      </div>
+      <div className="movie-cinematic-stage-scrim" />
+    </aside>
+  )
+}
+
+function ScrollPanel({
+  panelIdx,
+  align,
+  isMobile,
+  children,
+}: {
+  panelIdx: number
+  align: "left" | "right"
+  isMobile: boolean
+  children: ReactNode
+}) {
+  return (
+    <article
+      data-panel={panelIdx}
+      className={`movie-cinematic-panel movie-cinematic-panel--${align}${isMobile ? " movie-cinematic-panel--mobile" : ""}`}
+    >
       <div
-        style={{
-          position: "relative",
-          zIndex: 2,
-          width: isMobile ? "100%" : "48%",
-          marginLeft: !isMobile && textSide === "right" ? "52%" : 0,
-          minHeight: minH,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          padding: isMobile ? "80px 20px 48px" : textSide === "left" ? "100px 40px 80px 56px" : "100px 56px 80px 40px",
-          opacity: revealed ? 1 : 0,
-          transform: contentMotion,
-          transition: "opacity 0.7s ease 0.25s, transform 0.7s cubic-bezier(0.25,0.46,0.45,0.94) 0.25s",
-        }}
+        className="movie-cinematic-panel__content"
+        data-chapter-intro={panelIdx > 0 ? "true" : undefined}
       >
         {children}
       </div>
-    </section>
+    </article>
   )
 }
 
@@ -376,11 +324,8 @@ export default function MovieDetailClient({
   const [filmography, setFilmography] = useState<{ id: number; title: string; year: number }[]>([])
   const [loadingFilmography, setLoadingFilmography] = useState(false)
   const [castExpanded, setCastExpanded] = useState(false)
-  const [activeBackdropIdx, setActiveBackdropIdx] = useState(0)
-  const [sectionColors, setSectionColors] = useState<(string | null)[]>([null, null, null])
   const [revealed, setRevealed] = useState(false)
-  const backdropsRef = useRef<string[]>([])
-  backdropsRef.current = backdrops
+  const cinematicRef = useRef<HTMLDivElement>(null)
 
   const triggerSaveFlash = useCallback((key: NonNullable<SaveFlash>) => {
     if (saveFlashTimerRef.current) clearTimeout(saveFlashTimerRef.current)
@@ -435,6 +380,80 @@ export default function MovieDetailClient({
     }
   }, [userLoading])
 
+  useLayoutEffect(() => {
+    const root = cinematicRef.current
+    if (!root || !revealed || userLoading || !backdrops.length) return
+
+    const frame = root.querySelector<HTMLElement>(".movie-cinematic-frame")
+    const imgs = root.querySelectorAll<HTMLImageElement>(".movie-cinematic-backdrop-img")
+    const panels = root.querySelectorAll<HTMLElement>("[data-panel]")
+    if (!imgs.length || !panels.length) return
+
+    const scrubStart = isMobile ? "top 90%" : "top 85%"
+    const scrubEnd = isMobile ? "top 52%" : "top 48%"
+
+    if (prefersReducedMotion()) {
+      imgs.forEach((img, i) => {
+        img.style.opacity = i === 0 ? "1" : "0"
+      })
+      panels.forEach((panel, i) => {
+        const content = panel.querySelector<HTMLElement>(".movie-cinematic-panel__content")
+        if (!content) return
+        content.style.opacity = "1"
+        content.style.transform = "none"
+        if (frame && i > 0) frame.setAttribute("data-side", backdropSide(i, isMobile))
+      })
+      if (frame) frame.setAttribute("data-side", backdropSide(0, isMobile))
+      return
+    }
+
+    const { gsap } = ensureGsap()
+    const ctx = gsap.context(() => {
+      gsap.set(imgs, { opacity: 0 })
+      gsap.set(imgs[0], { opacity: 1 })
+
+      panels.forEach((panel, i) => {
+        const content = panel.querySelector<HTMLElement>(".movie-cinematic-panel__content")
+        if (!content) return
+        if (i === 0) {
+          gsap.set(content, { opacity: 1, y: 0 })
+        } else {
+          gsap.set(content, { opacity: 0, y: 18 })
+        }
+      })
+
+      for (let i = 0; i < imgs.length - 1; i++) {
+        const nextPanel = panels[i + 1]
+        if (!nextPanel) break
+
+        const nextContent = nextPanel.querySelector<HTMLElement>(".movie-cinematic-panel__content")
+        const fromSide = backdropSide(i, isMobile)
+        const toSide = backdropSide(i + 1, isMobile)
+
+        const tl = gsap.timeline({
+          scrollTrigger: {
+            trigger: nextPanel,
+            start: scrubStart,
+            end: scrubEnd,
+            scrub: 0.5,
+            onUpdate(self) {
+              if (!frame || isMobile) return
+              frame.setAttribute("data-side", self.progress > 0.88 ? toSide : fromSide)
+            },
+          },
+        })
+
+        tl.to(imgs[i], { opacity: 0, ease: "none", duration: 1 }, 0)
+        tl.to(imgs[i + 1], { opacity: 1, ease: "none", duration: 1 }, 0)
+        if (nextContent) {
+          tl.to(nextContent, { opacity: 1, y: 0, ease: "power2.out", duration: 1 }, 0)
+        }
+      }
+    }, root)
+
+    return () => ctx.revert()
+  }, [revealed, userLoading, backdrops, isMobile])
+
   useEffect(() => {
     if (userLoading || !rateOnLoad || rateOnLoadHandledRef.current || dbRecord) return
     rateOnLoadHandledRef.current = true
@@ -444,63 +463,6 @@ export default function MovieDetailClient({
       setWatchedEarlier(true)
     })
   }, [userLoading, rateOnLoad, dbRecord])
-
-  useEffect(() => {
-    if (!backdrops.length || isMobile) return
-    backdrops.forEach((src, i) => {
-      const img = new Image()
-      img.crossOrigin = "anonymous"
-      img.onload = () => {
-        try {
-          const c = document.createElement("canvas")
-          c.width = 50
-          c.height = 28
-          const ctx = c.getContext("2d")
-          if (!ctx) return
-          ctx.drawImage(img, 0, 0, 50, 28)
-          const { data } = ctx.getImageData(0, 0, 50, 28)
-          let r = 0,
-            g = 0,
-            b = 0,
-            n = 0
-          for (let j = 0; j < data.length; j += 16) {
-            r += data[j]
-            g += data[j + 1]
-            b += data[j + 2]
-            n++
-          }
-          r = Math.round(r / n)
-          g = Math.round(g / n)
-          b = Math.round(b / n)
-          if (Math.max(r, g, b) - Math.min(r, g, b) > 18)
-            setSectionColors((prev) => {
-              const x = [...prev]
-              x[i] = `${r},${g},${b}`
-              return x
-            })
-        } catch {
-          /* CORS blocked */
-        }
-      }
-      img.src = src
-    })
-  }, [backdrops, isMobile])
-
-  useEffect(() => {
-    if (userLoading || isMobile) return
-    const io = new IntersectionObserver(
-      (entries) =>
-        entries.forEach((e) => {
-          if (e.isIntersecting) {
-            const idx = Number((e.target as HTMLElement).dataset.section || 0)
-            setActiveBackdropIdx(Math.max(0, Math.min(idx, backdropsRef.current.length - 1)))
-          }
-        }),
-      { threshold: 0.25, rootMargin: "-5% 0px -40% 0px" }
-    )
-    document.querySelectorAll<HTMLElement>("[data-section]").forEach((el) => io.observe(el))
-    return () => io.disconnect()
-  }, [userLoading, isMobile])
 
   useEffect(() => {
     if (userLoading) return
@@ -610,9 +572,6 @@ export default function MovieDetailClient({
   const isWatched = Boolean(dbRecord)
   const releaseYear = movie.release_date ? new Date(movie.release_date).getFullYear() : null
   const visibleCast = castExpanded ? credits.cast : credits.cast.slice(0, CAST_PREVIEW)
-  const activeColor = sectionColors[activeBackdropIdx]
-  const bd = (i: number) => backdrops[Math.min(i, backdrops.length - 1)] || backdrops[0]
-  const sc = (i: number) => sectionColors[Math.min(i, sectionColors.length - 1)]
 
   const openRating = () => {
     setRatingValue(ratingValue ?? ratingNum ?? 7)
@@ -1047,17 +1006,6 @@ export default function MovieDetailClient({
     </div>
   )
 
-  const shellProps = (idx: number, textSide: "left" | "right", minH?: string) => ({
-    idx,
-    textSide,
-    minH,
-    isMobile,
-    revealed,
-    backdropSrc: bd(idx),
-    posterFallback: backdropFromPoster,
-    sectionColor: sc(idx),
-  })
-
   return (
     <main
       className={isMobile ? "page-with-mobile-tabs" : undefined}
@@ -1068,40 +1016,19 @@ export default function MovieDetailClient({
         paddingBottom: showStickyBar && isMobile ? MOBILE_TAB_BAR_INSET : undefined,
       }}
     >
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          pointerEvents: "none",
-          zIndex: 0,
-          background: activeColor ? `rgba(${activeColor},0.06)` : "transparent",
-          transition: "background 1.8s ease",
-        }}
-      />
-
-      <SectionShell {...shellProps(0, "left")}>
-        {isMobile && posterSrc && (
-          <div
-            style={{
-              width: 72,
-              aspectRatio: "2/3",
-              borderRadius: 8,
-              overflow: "hidden",
-              marginBottom: 16,
-              boxShadow: "0 6px 24px rgba(0,0,0,0.55)",
-              opacity: revealed ? 1 : 0,
-              transform: revealed ? "translateY(0)" : "translateY(8px)",
-              transition: "opacity 0.6s ease 0.1s, transform 0.6s ease 0.1s",
-            }}
-          >
-            <img
-              src={posterSrc}
-              alt=""
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-            />
-          </div>
+      <div ref={cinematicRef} className="movie-cinematic" data-mobile={isMobile ? "true" : "false"}>
+        {backdrops.length > 0 && (
+          <BackdropStage
+            backdrops={backdrops}
+            revealed={revealed}
+            posterFallback={backdropFromPoster}
+            isMobile={isMobile}
+            initialSide={backdropSide(0, isMobile)}
+          />
         )}
 
+        <div className="movie-cinematic-track">
+          <ScrollPanel panelIdx={0} align="left" isMobile={isMobile}>
         <h1 className="t-display" style={{ margin: 0, color: "var(--text-strong)" }}>
           {movie.title}
         </h1>
@@ -1194,9 +1121,9 @@ export default function MovieDetailClient({
             ))}
           </div>
         )}
-      </SectionShell>
+          </ScrollPanel>
 
-      <SectionShell {...shellProps(1, "right")}>
+          <ScrollPanel panelIdx={1} align="right" isMobile={isMobile}>
         {movie.overview && (
           <div style={{ marginBottom: 44 }}>
             <SectionLabel>Overview</SectionLabel>
@@ -1292,9 +1219,9 @@ export default function MovieDetailClient({
             </div>
           </div>
         </div>
-      </SectionShell>
+          </ScrollPanel>
 
-      <SectionShell {...shellProps(2, "left", "80svh")}>
+          <ScrollPanel panelIdx={2} align="left" isMobile={isMobile}>
         {keywords.length > 0 && (
           <div>
             <SectionLabel>Themes</SectionLabel>
@@ -1330,7 +1257,9 @@ export default function MovieDetailClient({
             {releaseYear ? `${movie.title} · ${releaseYear}` : movie.title}
           </p>
         </footer>
-      </SectionShell>
+          </ScrollPanel>
+        </div>
+      </div>
 
       {showStickyBar && !ratingOpen && (
         <div className="movie-sticky-actions" role="region" aria-label="Quick actions">
