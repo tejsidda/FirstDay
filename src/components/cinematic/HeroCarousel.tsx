@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import ParallaxY from "@/components/motion/ParallaxY"
-import { Movie } from "@/lib/types"
+import { mediaDetailPath, resolveMediaType } from "@/lib/media"
+import type { MediaItem } from "@/lib/types"
 import { formatLanguage } from "@/lib/tmdb"
 
 const ROTATION_MS = 14000
@@ -82,7 +83,7 @@ function RailButton({
 }
 
 type HeroCarouselProps = {
-  movies: Movie[]
+  movies: MediaItem[]
   isMobile: boolean
   sourceEyebrow: string
   onSearchOpen: () => void
@@ -106,6 +107,12 @@ export default function HeroCarousel({
   const movie = movies[index % movies.length]
   const backdrop = movie?.backdrop || movie?.poster
   const poster = movie?.poster || movie?.backdrop
+  const slideKey = movie ? `${resolveMediaType(movie)}-${movie.id}` : ""
+
+  const openDetails = () => {
+    if (!movie) return
+    router.push(mediaDetailPath(movie))
+  }
 
   const transitionSlide = (updater: (prev: number) => number) => {
     if (isTransitioningRef.current) return
@@ -224,7 +231,7 @@ export default function HeroCarousel({
         <span>{sourceEyebrow}</span>
       </div>
 
-      <h1 className="t-display hero-title" key={movie.id}>
+      <h1 className="t-display hero-title" key={slideKey}>
         {movie.title}
       </h1>
 
@@ -237,7 +244,7 @@ export default function HeroCarousel({
       <div className="hero-cta-row">
         <button
           type="button"
-          onClick={() => router.push(`/movie/${movie.id}`)}
+          onClick={openDetails}
           className="t-button hero-cta-primary"
         >
           Open details
@@ -289,7 +296,7 @@ export default function HeroCarousel({
             style={{ position: "absolute", inset: 0 }}
           >
             <CrossfadeStack
-              id={movie.id}
+              id={slideKey}
               duration={1300}
               animation="heroBackdropIn"
             >
@@ -306,7 +313,7 @@ export default function HeroCarousel({
       {isMobile && backdrop && (
         <div className="hero-backdrop-shell hero-backdrop-shell--mobile" aria-hidden>
           <CrossfadeStack
-            id={movie.id}
+            id={slideKey}
             duration={1000}
             animation="heroBackdropIn"
           >
@@ -320,7 +327,7 @@ export default function HeroCarousel({
       )}
 
       {/* Ghost title — oversized, partially clipped, behind everything */}
-      <div className="hero-ghost-title" aria-hidden key={`ghost-${movie.id}`}>
+      <div className="hero-ghost-title" aria-hidden key={`ghost-${slideKey}`}>
         {movie.title}
       </div>
 
@@ -331,7 +338,7 @@ export default function HeroCarousel({
           <button
             type="button"
             className="hero-poster-btn"
-            onClick={() => router.push(`/movie/${movie.id}`)}
+            onClick={openDetails}
             aria-label={`Open ${movie.title}`}
           >
             {posterGlow && !isMobile && (
@@ -342,7 +349,7 @@ export default function HeroCarousel({
             )}
             <div className="hero-poster-frame">
               <CrossfadeStack
-                id={movie.id}
+                id={slideKey}
                 duration={950}
                 animation="heroPosterTranscend"
               >

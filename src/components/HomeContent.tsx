@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import MovieSearch from "@/components/MovieSearch"
+import MediaSearch from "@/components/MediaSearch"
+import MediaTypeFilterBar from "@/components/MediaTypeFilterBar"
 import {
   getWatchlist,
   getWatched,
@@ -12,9 +13,10 @@ import {
   markRecommendationShown,
   getUnshownRecommendations,
 } from "@/lib/db"
+import { filterByMediaType, mediaDetailPath, resolveMediaType } from "@/lib/media"
 import { PULL_REFRESH_EVENT } from "@/lib/pullToRefresh"
 import { getRecommendations, refreshRecommendations } from "@/lib/recommend"
-import { Movie, type Recommendation } from "@/lib/types"
+import { MediaItem, Movie, type MediaTypeFilter, type Recommendation } from "@/lib/types"
 import { formatLanguage } from "@/lib/tmdb"
 import RatingDisplay from "@/components/RatingDisplay"
 import SplitReveal from "@/components/motion/SplitReveal"
@@ -39,7 +41,7 @@ function PolaroidCard({
   featured = false,
   clipVariant,
 }: {
-  film: Movie
+  film: MediaItem
   onClick: () => void
   featured?: boolean
   clipVariant?: number
@@ -216,8 +218,9 @@ function SectionLink({
 }
 
 export default function HomeContent() {
-  const [watchlist, setWatchlist] = useState<Movie[]>([])
-  const [watched, setWatched] = useState<Movie[]>([])
+  const [watchlist, setWatchlist] = useState<MediaItem[]>([])
+  const [watched, setWatched] = useState<MediaItem[]>([])
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<MediaTypeFilter>("all")
   const [isMobile, setIsMobile] = useState(false)
   const [loading, setLoading] = useState(true)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -316,11 +319,16 @@ export default function HomeContent() {
   const heroMovies =
     watchlist.length > 0 ? watchlist : watched.length > 0 ? [watched[0]] : []
 
-  const handleAddToWatchlist = async (movie: Movie) => {
-    const result = await addToWatchlistDetailed(movie)
+  const displayedWatched = filterByMediaType(watched, mediaTypeFilter)
+  const displayedWatchlist = filterByMediaType(watchlist, mediaTypeFilter)
+
+  const handleAddToWatchlist = async (item: MediaItem) => {
+    const result = await addToWatchlistDetailed(item)
     if (result.ok) {
       setWatchlist((prev) =>
-        prev.some((m) => m.id === movie.id) ? prev : [movie, ...prev],
+        prev.some((m) => m.id === item.id && resolveMediaType(m) === resolveMediaType(item))
+          ? prev
+          : [item, ...prev],
       )
       return { ok: true }
     }
@@ -331,8 +339,9 @@ export default function HomeContent() {
   }
 
   const handleAddRecommendation = async (rec: Recommendation) => {
-    const movie: Movie = {
+    const movie: MediaItem = {
       id: String(rec.tmdbId),
+      mediaType: "movie",
       title: rec.title,
       year: rec.year,
       language: rec.language,
@@ -468,6 +477,10 @@ export default function HomeContent() {
             02
           </span>
 
+          <div style={{ marginBottom: isMobile ? 24 : 32 }}>
+            <MediaTypeFilterBar value={mediaTypeFilter} onChange={setMediaTypeFilter} />
+          </div>
+
           <SectionHeader
             index="02"
             eyebrow="The archive"
@@ -480,7 +493,11 @@ export default function HomeContent() {
             }
           />
 
-          {isMobile ? (
+          {displayedWatched.length === 0 ? (
+            <p className="t-meta" style={{ color: "var(--text-dim)" }}>
+              No recently watched titles match this filter.
+            </p>
+          ) : isMobile ? (
             <div
               style={{
                 display: "grid",
@@ -488,15 +505,15 @@ export default function HomeContent() {
                 gap: 20,
               }}
             >
-              {watched.slice(0, recentlyWatchedDisplayCount).map((film, i) => (
+              {displayedWatched.slice(0, recentlyWatchedDisplayCount).map((film, i) => (
                 <div
-                  key={film.id}
+                  key={`${film.mediaType}-${film.id}`}
                   style={{ marginTop: i % 2 === 1 ? 36 : 0 }}
                 >
                   <PolaroidCard
                     film={film}
                     clipVariant={i}
-                    onClick={() => router.push(`/movie/${film.id}`)}
+                    onClick={() => router.push(mediaDetailPath(film))}
                   />
                 </div>
               ))}
@@ -511,11 +528,11 @@ export default function HomeContent() {
                 alignItems: "start",
               }}
             >
-              {watched.slice(0, recentlyWatchedDisplayCount).map((film, i) => {
+              {displayedWatched.slice(0, recentlyWatchedDisplayCount).map((film, i) => {
                 const preset = GRID_PRESETS[i % GRID_PRESETS.length]
                 return (
                   <div
-                    key={film.id}
+                    key={`${film.mediaType}-${film.id}`}
                     style={{
                       gridColumn: preset.col,
                       marginTop: preset.mt,
@@ -526,7 +543,7 @@ export default function HomeContent() {
                         film={film}
                         featured={preset.featured}
                         clipVariant={i}
-                        onClick={() => router.push(`/movie/${film.id}`)}
+                        onClick={() => router.push(mediaDetailPath(film))}
                       />
                     </ParallaxY>
                   </div>
@@ -655,7 +672,7 @@ export default function HomeContent() {
       </section>
 
       {/* ─────────────── WATCHLIST ─────────────── */}
-      {watchlist.length > 0 && (
+      {displayedWatchlist.length > 0 && (
         <section
           style={{
             position: "relative",
@@ -671,7 +688,7 @@ export default function HomeContent() {
               isMobile={isMobile}
               action={
                 <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-                  {!isMobile && watchlist.length > 4 && (
+                  {!isMobile && displayedWatchlist.length > 4 && (
                     <>
                       <RailButton direction="left" onClick={() => scrollWatchlistRail("left")} />
                       <RailButton direction="right" onClick={() => scrollWatchlistRail("right")} />
@@ -709,10 +726,10 @@ export default function HomeContent() {
                 scrollPaddingLeft: isMobile ? 20 : 56,
               }}
             >
-              {watchlist.map((film) => (
+              {displayedWatchlist.map((film) => (
                 <Link
-                  key={film.id}
-                  href={`/movie/${film.id}`}
+                  key={`${film.mediaType}-${film.id}`}
+                  href={mediaDetailPath(film)}
                   style={{
                     flex: "0 0 auto",
                     width: isMobile ? 140 : 170,
@@ -821,7 +838,7 @@ export default function HomeContent() {
       </footer>
 
       {searchOpen && (
-        <MovieSearch onAdd={handleAddToWatchlist} onClose={() => setSearchOpen(false)} />
+        <MediaSearch onAdd={handleAddToWatchlist} onClose={() => setSearchOpen(false)} />
       )}
     </main>
   )

@@ -8,17 +8,21 @@ import {
   messageForAddToWatchlistFailure,
 } from "@/lib/db"
 import { PULL_REFRESH_EVENT } from "@/lib/pullToRefresh"
-import type { Movie } from "@/lib/types"
+import type { MediaItem } from "@/lib/types"
+import { filterByMediaType, mediaDetailPath, resolveMediaType } from "@/lib/media"
 import { formatLanguage } from "@/lib/tmdb"
+import { useMediaTypeFilterFromUrl } from "@/hooks/useMediaTypeFilterFromUrl"
 import RatingDisplay from "@/components/RatingDisplay"
-import MovieSearch from "@/components/MovieSearch"
+import MediaSearch from "@/components/MediaSearch"
 import FilterChip from "@/components/FilterChip"
+
+const ANY_LANGUAGE = "Any language"
 
 function LibraryPoster({
   film,
   onClick,
 }: {
-  film: Movie
+  film: MediaItem
   onClick: () => void
 }) {
   const [hovered, setHovered] = useState(false)
@@ -63,6 +67,21 @@ function LibraryPoster({
             display: "block",
           }}
         />
+        {resolveMediaType(film) === "tv" && (
+          <div
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              background: "var(--panel-overlay)",
+              borderRadius: 6,
+              padding: "4px 8px",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            <span className="t-caption" style={{ color: "var(--text-button)" }}>Series</span>
+          </div>
+        )}
         {film.rating != null && (
           <div
             style={{
@@ -104,9 +123,10 @@ function LibraryPoster({
 }
 
 export default function LibraryPage() {
-  const [watched, setWatched] = useState<Movie[]>([])
+  const [watched, setWatched] = useState<MediaItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedLanguage, setSelectedLanguage] = useState("All")
+  const [selectedLanguage, setSelectedLanguage] = useState(ANY_LANGUAGE)
+  const { mediaTypeFilter } = useMediaTypeFilterFromUrl()
   const [searchQuery, setSearchQuery] = useState("")
   const [isMobile, setIsMobile] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -148,8 +168,8 @@ export default function LibraryPage() {
     }
   }, [])
 
-  const handleAdd = async (movie: Movie) => {
-    const result = await addToWatchlistDetailed(movie)
+  const handleAdd = async (item: MediaItem) => {
+    const result = await addToWatchlistDetailed(item)
     if (result.ok) return { ok: true }
     return {
       ok: false,
@@ -157,11 +177,13 @@ export default function LibraryPage() {
     }
   }
 
+  const typeFiltered = filterByMediaType(watched, mediaTypeFilter)
+
   const languages = [
-    "All",
+    ANY_LANGUAGE,
     ...Array.from(
       new Set(
-        watched
+        typeFiltered
           .map((m) => formatLanguage(m.language))
           .filter((l): l is string => Boolean(l)),
       ),
@@ -169,10 +191,10 @@ export default function LibraryPage() {
   ]
 
   const normalizedQuery = searchQuery.trim().toLowerCase()
-  const filteredWatched = watched.filter((film) => {
+  const filteredWatched = typeFiltered.filter((film) => {
     const filmLang = formatLanguage(film.language)
     const languageOk =
-      selectedLanguage === "All" || filmLang === selectedLanguage
+      selectedLanguage === ANY_LANGUAGE || filmLang === selectedLanguage
     if (!normalizedQuery) return languageOk
     return (
       languageOk &&
@@ -226,7 +248,7 @@ export default function LibraryPage() {
               className="t-display-num t-tabular"
               style={{ color: "var(--text-strong)" }}
             >
-              {watched.length}
+              {typeFiltered.length}
             </div>
             <p
               className="t-body"
@@ -237,7 +259,7 @@ export default function LibraryPage() {
                 fontStyle: "italic",
               }}
             >
-              {watched.length === 1 ? "film" : "films"}. Every one meant
+              {typeFiltered.length === 1 ? "title" : "titles"}. Every one meant
               something.
             </p>
           </>
@@ -289,21 +311,34 @@ export default function LibraryPage() {
           <div
             style={{
               display: "flex",
-              gap: 6,
-              flexWrap: "wrap",
-              justifyContent: "center",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 8,
+              flex: isMobile ? "1 1 100%" : undefined,
             }}
           >
-            {languages.map((lang) => (
-              <FilterChip
-                key={lang}
-                label={lang}
-                active={selectedLanguage === lang}
-                onClick={() =>
-                  setSelectedLanguage((prev) => (prev === lang ? "All" : lang))
-                }
-              />
-            ))}
+            <span className="t-caption" style={{ color: "var(--text-label)" }}>
+              Language
+            </span>
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                flexWrap: "wrap",
+                justifyContent: "center",
+              }}
+            >
+              {languages.map((lang) => (
+                <FilterChip
+                  key={lang}
+                  label={lang}
+                  active={selectedLanguage === lang}
+                  onClick={() =>
+                    setSelectedLanguage((prev) => (prev === lang ? ANY_LANGUAGE : lang))
+                  }
+                />
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -327,7 +362,7 @@ export default function LibraryPage() {
                 color: "var(--text-dim)",
               }}
             >
-              No films match that search.
+              No titles match that search.
             </div>
           ) : (
             <div
@@ -341,9 +376,9 @@ export default function LibraryPage() {
             >
               {filteredWatched.map((film) => (
                 <LibraryPoster
-                  key={film.id}
+                  key={`${film.mediaType}-${film.id}`}
                   film={film}
-                  onClick={() => router.push(`/movie/${film.id}`)}
+                  onClick={() => router.push(mediaDetailPath(film))}
                 />
               ))}
             </div>
@@ -352,7 +387,7 @@ export default function LibraryPage() {
       )}
 
       {searchOpen && (
-        <MovieSearch
+        <MediaSearch
           onAdd={handleAdd}
           onClose={() => setSearchOpen(false)}
         />

@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState, useEffect } from "react"
-import { Movie } from "@/lib/types"
+import { MediaItem } from "@/lib/types"
 import MoviePosterCard from "./MoviePosterCard"
 
 export default function PosterRail({
@@ -9,15 +9,17 @@ export default function PosterRail({
   subtitle,
   movies,
   showRating,
+  showTypeBadge,
   onMarkWatched,
   onRemove,
 }: {
   title: string
   subtitle?: string
-  movies: Movie[]
+  movies: MediaItem[]
   showRating?: boolean
-  onMarkWatched?: (movie: Movie, rating: number) => void
-  onRemove?: (movie: Movie) => void
+  showTypeBadge?: boolean
+  onMarkWatched?: (movie: MediaItem, rating: number) => void
+  onRemove?: (movie: MediaItem) => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
@@ -121,13 +123,14 @@ export default function PosterRail({
         >
           {movies.map((m, i) => (
             <div
-              key={`${m.id}-${i}`}
+              key={`${m.mediaType}-${m.id}-${i}`}
               className="min-w-[160px] max-w-[160px] shrink-0"
             >
               <MoviePosterCard
                 movie={m}
                 size="large"
                 showRating={showRating}
+                showTypeBadge={showTypeBadge}
                 onMarkWatched={onMarkWatched}
                 onRemove={onRemove}
               />

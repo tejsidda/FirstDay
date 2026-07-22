@@ -155,6 +155,23 @@ describe("HeroCarousel", () => {
     expect(mockPush).toHaveBeenCalledWith("/movie/1")
   })
 
+  it("navigates to TV details when the hero item is a series", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) })
+
+    render(
+      <HeroCarousel
+        movies={[makeMovie({ id: "1396", title: "Breaking Bad", mediaType: "tv" })]}
+        isMobile={false}
+        sourceEyebrow="From your watchlist"
+        onSearchOpen={onSearchOpen}
+      />,
+    )
+
+    await user.click(screen.getByRole("button", { name: "Open details" }))
+
+    expect(mockPush).toHaveBeenCalledWith("/tv/1396")
+  })
+
   it("calls onSearchOpen from the secondary CTA", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime.bind(vi) })
 

@@ -1,8 +1,9 @@
-import type { Movie, Recommendation } from "@/lib/types"
+import type { MediaItem, Movie, Recommendation } from "@/lib/types"
 
-export function makeMovie(overrides: Partial<Movie> = {}): Movie {
+export function makeMovie(overrides: Partial<Movie> = {}): MediaItem {
   return {
     id: "1",
+    mediaType: "movie",
     title: "First Film",
     year: 2024,
     language: "en",

@@ -13,10 +13,10 @@ import {
   removeFromWatchlist,
   updateReview,
 } from "@/lib/db"
-import type { Movie } from "@/lib/types"
+import type { MediaItem, Movie } from "@/lib/types"
 import RatingDisplay from "@/components/RatingDisplay"
 import StandingOvationInput from "@/components/StandingOvationInput"
-import MovieSearch from "@/components/MovieSearch"
+import MediaSearch from "@/components/MediaSearch"
 import { ensureGsap, prefersReducedMotion } from "@/components/motion/gsapSetup"
 import { useIsMobile, MOBILE_TAB_BAR_INSET } from "@/hooks/useIsMobile"
 import {
@@ -353,8 +353,8 @@ export default function MovieDetailClient({
     async function loadUserData() {
       setUserLoading(true)
       const [{ data: wd }, { data: wl }] = await Promise.all([
-        supabase.from("watched").select("*").eq("tmdb_id", tmdbId).limit(1),
-        supabase.from("watchlist").select("id").eq("tmdb_id", tmdbId).limit(1),
+        supabase.from("watched").select("*").eq("tmdb_id", tmdbId).eq("media_type", "movie").limit(1),
+        supabase.from("watchlist").select("id").eq("tmdb_id", tmdbId).eq("media_type", "movie").limit(1),
       ])
       if (!active) return
       const row = wd?.[0]
@@ -478,8 +478,9 @@ export default function MovieDetailClient({
 
   const posterSrc = dbRecord?.poster || serverPosterSrc
 
-  const movieForDb = (): Movie => ({
+  const movieForDb = (): MediaItem => ({
     id: String(tmdbId),
+    mediaType: "movie",
     title: movie.title,
     year: movie.release_date ? new Date(movie.release_date).getFullYear() : 0,
     language: formatLanguage(movie.original_language),
@@ -500,10 +501,10 @@ export default function MovieDetailClient({
     setBusy(false)
   }
 
-  const handleSearchAdd = async (movie: Movie) => {
-    const result = await addToWatchlistDetailed(movie)
+  const handleSearchAdd = async (item: MediaItem) => {
+    const result = await addToWatchlistDetailed(item)
     if (result.ok) {
-      if (movie.id === tmdbId) setIsWatchlisted(true)
+      if (item.id === tmdbId && item.mediaType === "movie") setIsWatchlisted(true)
       return { ok: true }
     }
     return {
@@ -514,7 +515,7 @@ export default function MovieDetailClient({
 
   const handleRemoveWatchlist = async () => {
     setBusy(true)
-    if (await removeFromWatchlist(tmdbId)) {
+    if (await removeFromWatchlist(tmdbId, "movie")) {
       setIsWatchlisted(false)
       triggerSaveFlash("watchlist-remove")
     }
@@ -533,7 +534,7 @@ export default function MovieDetailClient({
       setSavingRating(false)
       return
     }
-    const { data } = await supabase.from("watched").select("*").eq("tmdb_id", tmdbId).limit(1)
+    const { data } = await supabase.from("watched").select("*").eq("tmdb_id", tmdbId).eq("media_type", "movie").limit(1)
     if (data?.[0]) setDbRecord(data[0] as WatchedRow)
     setIsWatchlisted(false)
     setRatingOpen(false)
@@ -545,7 +546,7 @@ export default function MovieDetailClient({
 
   const handleSaveReview = async () => {
     setSavingReview(true)
-    if (await updateReview(tmdbId, headline, body || undefined)) {
+    if (await updateReview(tmdbId, headline, body || undefined, "movie")) {
       setEditingReview(false)
       setDbRecord((prev) =>
         prev ? { ...prev, review_headline: headline, review_body: body } : prev
@@ -1268,7 +1269,7 @@ export default function MovieDetailClient({
       )}
 
       {searchOpen && (
-        <MovieSearch onAdd={handleSearchAdd} onClose={() => setSearchOpen(false)} />
+        <MediaSearch onAdd={handleSearchAdd} onClose={() => setSearchOpen(false)} />
       )}
     </main>
   )

@@ -1,4 +1,4 @@
-import { Movie } from "./types"
+import { MediaItem, Movie } from "./types"
 
 const IMG = "https://image.tmdb.org/t/p"
 
@@ -57,6 +57,20 @@ export type TmdbMovieDetails = {
   original_language?: string | null
 }
 
+export type TmdbTvDetails = {
+  id: number
+  name?: string
+  episode_run_time?: number[] | null
+  number_of_seasons?: number | null
+  number_of_episodes?: number | null
+  status?: string | null
+  genres?: MovieGenre[]
+  poster_path?: string | null
+  backdrop_path?: string | null
+  first_air_date?: string | null
+  original_language?: string | null
+}
+
 export function formatLanguage(value: string | null | undefined): string {
   if (!value) return ""
   const trimmed = value.trim()
@@ -81,9 +95,10 @@ function tmdbToMovie(item: {
   original_language?: string
   poster_path?: string | null
   backdrop_path?: string | null
-}): Movie {
+}): MediaItem {
   return {
     id: String(item.id),
+    mediaType: "movie",
     title: item.title,
     year: item.release_date ? parseInt(item.release_date.split("-")[0], 10) : 0,
     language: formatLanguage(item.original_language),
@@ -94,13 +109,43 @@ function tmdbToMovie(item: {
   }
 }
 
-export async function searchMovies(query: string, year?: number): Promise<Movie[]> {
+function tmdbToTvShow(item: {
+  id: number
+  name: string
+  first_air_date?: string
+  original_language?: string
+  poster_path?: string | null
+  backdrop_path?: string | null
+}): MediaItem {
+  return {
+    id: String(item.id),
+    mediaType: "tv",
+    title: item.name,
+    year: item.first_air_date ? parseInt(item.first_air_date.split("-")[0], 10) : 0,
+    language: formatLanguage(item.original_language),
+    poster: item.poster_path
+      ? posterURL(item.poster_path)
+      : "linear-gradient(145deg, #1a1a2d 0%, #0a0a14 100%)",
+    backdrop: item.backdrop_path ? backdropURL(item.backdrop_path) : undefined,
+  }
+}
+
+export async function searchMovies(query: string, year?: number): Promise<MediaItem[]> {
   let url = `/api/tmdb/search?q=${encodeURIComponent(query)}`
   if (year) url += `&year=${year}`
   const res = await fetch(url)
   if (!res.ok) return []
   const results = await res.json()
   return Array.isArray(results) ? results.map(tmdbToMovie) : []
+}
+
+export async function searchTvShows(query: string, year?: number): Promise<MediaItem[]> {
+  let url = `/api/tmdb/search/tv?q=${encodeURIComponent(query)}`
+  if (year) url += `&year=${year}`
+  const res = await fetch(url)
+  if (!res.ok) return []
+  const results = await res.json()
+  return Array.isArray(results) ? results.map(tmdbToTvShow) : []
 }
 
 export async function getMovieByName(name: string): Promise<Movie | null> {
@@ -111,6 +156,35 @@ export async function getMovieByName(name: string): Promise<Movie | null> {
 export async function getMovieDetails(id: string): Promise<TmdbMovieDetails | null> {
   const res = await fetch(`/api/tmdb/movie/${id}`)
   if (!res.ok) return null
+  return res.json()
+}
+
+export type TvDetailsForDb = {
+  genres: MovieGenre[]
+  runtime: number | null
+  seasons: number | null
+  episodes: number | null
+}
+
+export async function getTvDetails(id: string): Promise<TvDetailsForDb | null> {
+  const res = await fetch(`/api/tmdb/tv/${id}`)
+  if (!res.ok) return null
+  const data = (await res.json()) as TmdbTvDetails
+  const runtime =
+    data.episode_run_time?.length && data.episode_run_time[0] > 0
+      ? data.episode_run_time[0]
+      : null
+  return {
+    genres: data.genres ?? [],
+    runtime,
+    seasons: data.number_of_seasons ?? null,
+    episodes: data.number_of_episodes ?? null,
+  }
+}
+
+export async function getTvCredits(tmdbId: string) {
+  const res = await fetch(`/api/tmdb/tv/${tmdbId}/credits`)
+  if (!res.ok) return { creators: [] as string[], cast: [] as string[] }
   return res.json()
 }
 

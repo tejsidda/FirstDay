@@ -9,6 +9,7 @@ const PROTECTED_PREFIXES = [
   "/watchlist",
   "/wrapped",
   "/movie",
+  "/tv",
   "/test",
 ]
 

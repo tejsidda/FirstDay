@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { usePathname } from "next/navigation"
 import TopOverlayNav from "@/components/TopOverlayNav"
 
@@ -10,10 +11,12 @@ export default function NavWrapper() {
   const pathname = usePathname()
   if (NO_NAV.includes(pathname)) return null
   return (
-    <TopOverlayNav
-      onSearchClick={() =>
-        window.dispatchEvent(new CustomEvent("fdfs:open-search"))
-      }
-    />
+    <Suspense fallback={null}>
+      <TopOverlayNav
+        onSearchClick={() =>
+          window.dispatchEvent(new CustomEvent("fdfs:open-search"))
+        }
+      />
+    </Suspense>
   )
 }

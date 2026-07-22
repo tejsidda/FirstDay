@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { createElement } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { Movie } from "@/lib/types"
 import { makeMovie, makeRecommendation } from "@/test/mocks/movies"
@@ -51,10 +52,7 @@ vi.mock("@/components/motion/SplitReveal", () => ({
   }: {
     children: React.ReactNode
     as?: keyof React.JSX.IntrinsicElements
-  }) => {
-    const Element = Tag
-    return <Element>{children}</Element>
-  },
+  }) => createElement(Tag, null, children),
 }))
 
 vi.mock("@/components/motion/ClipReveal", () => ({
@@ -73,7 +71,7 @@ vi.mock("@/components/motion/gsapSetup", () => ({
   ensureGsap: () => ({ ScrollTrigger: { refresh: vi.fn() } }),
 }))
 
-vi.mock("@/components/MovieSearch", () => ({
+vi.mock("@/components/MediaSearch", () => ({
   default: ({ onClose }: { onClose: () => void }) => (
     <div data-testid="movie-search">
       <button type="button" onClick={onClose}>

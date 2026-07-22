@@ -7,8 +7,9 @@ import {
   messageForAddToWatchlistFailure,
 } from "@/lib/db"
 import { getMovieDetails, formatLanguage } from "@/lib/tmdb"
-import type { Movie } from "@/lib/types"
-import MovieSearch from "@/components/MovieSearch"
+import type { MediaItem } from "@/lib/types"
+import { resolveMediaType } from "@/lib/media"
+import MediaSearch from "@/components/MediaSearch"
 import FilterChip from "@/components/FilterChip"
 import { useIsMobile, MOBILE_TAB_BAR_INSET } from "@/hooks/useIsMobile"
 
@@ -60,14 +61,14 @@ async function fetchInBatches<T, R>(
 
 type Scope = "all" | "year"
 
-function getWatchedYear(m: Movie): number | null {
+function getWatchedYear(m: MediaItem): number | null {
   if (!m.watchedAt) return null
   const d = new Date(m.watchedAt)
   if (Number.isNaN(d.getTime())) return null
   return d.getFullYear()
 }
 
-function getWatchedMonth(m: Movie): string | null {
+function getWatchedMonth(m: MediaItem): string | null {
   if (!m.watchedAt) return null
   const d = new Date(m.watchedAt)
   if (Number.isNaN(d.getTime())) return null
@@ -75,7 +76,7 @@ function getWatchedMonth(m: Movie): string | null {
 }
 
 export default function WrappedPage() {
-  const [watched, setWatched] = useState<Movie[]>([])
+  const [watched, setWatched] = useState<MediaItem[]>([])
   const [loading, setLoading] = useState(true)
   const isMobile = useIsMobile()
   const [searchOpen, setSearchOpen] = useState(false)
@@ -109,12 +110,21 @@ export default function WrappedPage() {
     }
   }, [])
 
+  const movieWatched = useMemo(
+    () => watched.filter((w) => resolveMediaType(w) === "movie"),
+    [watched],
+  )
+  const tvWatchedCount = useMemo(
+    () => watched.filter((w) => resolveMediaType(w) === "tv").length,
+    [watched],
+  )
+
   // Legacy rows without genres/runtime: one cached proxy fetch each (older library entries)
   useEffect(() => {
-    if (watched.length === 0) return
+    if (movieWatched.length === 0) return
     let active = true
     const cache = readCache()
-    const missing = watched.filter(
+    const missing = movieWatched.filter(
       (w) =>
         !cache[w.id] &&
         ((w.genres?.length ?? 0) === 0 || w.runtime == null || w.runtime <= 0)
@@ -163,17 +173,17 @@ export default function WrappedPage() {
     return () => {
       active = false
     }
-  }, [watched])
+  }, [movieWatched])
 
   const scoped = useMemo(() => {
-    if (scope === "all") return watched
-    return watched.filter((w) => getWatchedYear(w) === currentYear)
-  }, [watched, scope, currentYear])
+    if (scope === "all") return movieWatched
+    return movieWatched.filter((w) => getWatchedYear(w) === currentYear)
+  }, [movieWatched, scope, currentYear])
 
   const stats = useMemo(() => computeStats(scoped, tmdbCache), [scoped, tmdbCache])
 
-  const handleAdd = async (movie: Movie) => {
-    const result = await addToWatchlistDetailed(movie)
+  const handleAdd = async (item: MediaItem) => {
+    const result = await addToWatchlistDetailed(item)
     if (result.ok) return { ok: true }
     return {
       ok: false,
@@ -231,7 +241,7 @@ export default function WrappedPage() {
           </p>
         </div>
         {searchOpen && (
-          <MovieSearch onAdd={handleAdd} onClose={() => setSearchOpen(false)} />
+          <MediaSearch onAdd={handleAdd} onClose={() => setSearchOpen(false)} />
         )}
       </main>
     )
@@ -275,6 +285,15 @@ export default function WrappedPage() {
         >
           {stats.totalFilms === 1 ? "film" : "films"} watched
         </p>
+        {tvWatchedCount > 0 && (
+          <p
+            className="t-caption"
+            style={{ marginTop: 12, color: "var(--text-dim)" }}
+          >
+            {tvWatchedCount} TV {tvWatchedCount === 1 ? "series" : "series"} in your library
+            (runtime stats below are movie-only)
+          </p>
+        )}
 
         {/* Scope toggle */}
         <div
@@ -497,7 +516,7 @@ export default function WrappedPage() {
       </div>
 
       {searchOpen && (
-        <MovieSearch onAdd={handleAdd} onClose={() => setSearchOpen(false)} />
+        <MediaSearch onAdd={handleAdd} onClose={() => setSearchOpen(false)} />
       )}
     </main>
   )
@@ -610,7 +629,7 @@ function RankedRow({
   rightLabel,
 }: {
   rank: number
-  movie: Movie
+  movie: MediaItem
   rightLabel?: string
 }) {
   return (
@@ -776,13 +795,13 @@ type Stats = {
   topLanguage: { name: string; count: number } | null
   topGenre: { name: string; count: number } | null
   topMonth: { name: string; count: number } | null
-  topRated: Movie[]
+  topRated: MediaItem[]
   perYear: { year: number; count: number }[]
   languages: { name: string; count: number }[]
   genres: { name: string; count: number }[]
 }
 
-function computeStats(films: Movie[], cache: CacheMap): Stats {
+function computeStats(films: MediaItem[], cache: CacheMap): Stats {
   const total = films.length
   const rated = films.filter((f) => typeof f.rating === "number")
   const avg =

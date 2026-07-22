@@ -63,7 +63,7 @@ vi.mock("@/components/StandingOvationInput", () => ({
   ),
 }))
 
-vi.mock("@/components/MovieSearch", () => ({
+vi.mock("@/components/MediaSearch", () => ({
   default: ({ onClose }: { onClose: () => void }) => (
     <div data-testid="movie-search">
       <button type="button" onClick={onClose}>
@@ -214,6 +214,7 @@ describe("MovieDetailClient", () => {
       expect(addToWatchlistDetailed).toHaveBeenCalledWith(
         expect.objectContaining({
           id: "550",
+          mediaType: "movie",
           title: "Fight Club",
           backdrop: "https://example.com/backdrop-1.jpg",
         }),

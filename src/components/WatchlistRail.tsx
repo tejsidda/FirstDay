@@ -1,4 +1,5 @@
-import { Movie } from "@/lib/types"
+import { MediaItem } from "@/lib/types"
+import { resolveMediaType } from "@/lib/media"
 import MoviePosterCard from "./MoviePosterCard"
 
 /**
@@ -18,7 +19,7 @@ export default function WatchlistRail({
   cardSize = "large",
 }: {
   title: string
-  movies: Movie[]
+  movies: MediaItem[]
   cardSize?: "large" | "small"
 }) {
   return (
@@ -27,7 +28,11 @@ export default function WatchlistRail({
       <h2 className="mb-4 text-lg font-medium text-white/90">{title}</h2>
       <div className="flex gap-5 overflow-x-auto scrollbar-hide pb-2">
         {movies.map((movie) => (
-          <MoviePosterCard key={movie.id} movie={movie} size={cardSize} />
+          <MoviePosterCard
+            key={`${resolveMediaType(movie)}-${movie.id}`}
+            movie={{ ...movie, mediaType: resolveMediaType(movie) }}
+            size={cardSize}
+          />
         ))}
       </div>
     </section>

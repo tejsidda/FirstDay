@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { Movie } from "@/lib/types"
+import { MediaItem } from "@/lib/types"
+import { mediaDetailPath, resolveMediaType } from "@/lib/media"
 import { formatLanguage } from "@/lib/tmdb"
 import RatingDisplay from "@/components/RatingDisplay"
 import StandingOvationInput from "@/components/StandingOvationInput"
@@ -24,14 +25,16 @@ export default function MoviePosterCard({
   movie,
   size = "large",
   showRating,
+  showTypeBadge = false,
   onMarkWatched,
   onRemove,
 }: {
-  movie: Movie & { rating?: number | null }
+  movie: MediaItem & { rating?: number | null }
   size?: Size
   showRating?: boolean
-  onMarkWatched?: (movie: Movie, rating: number) => void
-  onRemove?: (movie: Movie) => void
+  showTypeBadge?: boolean
+  onMarkWatched?: (movie: MediaItem, rating: number) => void
+  onRemove?: (movie: MediaItem) => void
 }) {
   const s = sizeClasses[size]
   const isGradient = movie.poster.startsWith("linear-gradient")
@@ -39,9 +42,11 @@ export default function MoviePosterCard({
   const [showRatingPicker, setShowRatingPicker] = useState(false)
   const hasRating = showRating && movie.rating != null
 
+  const isTv = resolveMediaType(movie) === "tv"
+
   return (
     <Link
-      href={`/movie/${movie.id}`}
+      href={mediaDetailPath(movie)}
       className={`${s.card} group block text-left`}
       onMouseLeave={() => setShowRatingPicker(false)}
     >
@@ -170,6 +175,17 @@ export default function MoviePosterCard({
         {hasRating && (
           <div className="absolute left-2 top-2 rounded-[6px] bg-black/60 px-2 py-1 backdrop-blur-[4px]">
             <RatingDisplay rating={movie.rating!} size="sm" />
+          </div>
+        )}
+
+        {showTypeBadge && isTv && (
+          <div
+            className="absolute right-2 top-2 rounded-[6px] px-2 py-1 backdrop-blur-[4px]"
+            style={{ background: "rgba(0,0,0,0.65)" }}
+          >
+            <span className="t-caption" style={{ color: "var(--text-button)" }}>
+              Series
+            </span>
           </div>
         )}
       </div>

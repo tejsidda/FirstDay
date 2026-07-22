@@ -1,3 +1,5 @@
+export type MediaType = "movie" | "tv"
+
 export type Recommendation = {
   id: string
   tmdbId: number
@@ -27,4 +29,18 @@ export type Movie = {
   rating?: number | null
   reviewHeadline?: string
   reviewBody?: string
+  /** Present on MediaItem; defaults to movie when omitted */
+  mediaType?: MediaType
 }
+
+export type MediaItem = Movie & {
+  mediaType: MediaType
+  /** TV-only: number of seasons */
+  seasons?: number
+  /** TV-only: total episode count */
+  episodes?: number
+  /** TV-only: e.g. Returning Series, Ended */
+  status?: string
+}
+
+export type MediaTypeFilter = "all" | MediaType

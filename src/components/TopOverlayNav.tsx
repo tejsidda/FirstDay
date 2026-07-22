@@ -6,7 +6,9 @@ import { supabase } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import MobileTabBar from "@/components/MobileTabBar"
+import MediaTypeNavToggle from "@/components/MediaTypeNavToggle"
 import { useIsMobile } from "@/hooks/useIsMobile"
+import { showsMediaTypeNav } from "@/lib/mediaTypeNav"
 
 const DESKTOP_LINKS = [
   {
@@ -86,6 +88,7 @@ export default function TopOverlayNav({
   }
 
   const showBarBg = isMobile || scrolled
+  const showMediaTypeToggle = showsMediaTypeNav(pathname)
 
   return (
     <>
@@ -105,15 +108,22 @@ export default function TopOverlayNav({
         }}
       >
         <div
-          className={`flex w-full items-center justify-between ${isMobile ? "px-3 py-2" : "px-12 py-4"}`}
+          className={`flex w-full items-center justify-between gap-2 ${isMobile ? "px-3 py-2" : "px-12 py-4"}`}
         >
-          <Link
-            href="/home"
-            className={`${isMobile ? "text-[15px] min-h-[44px] inline-flex items-center px-2" : "text-[15px]"} font-semibold tracking-[0.14em] text-[color:var(--text-primary)] transition-colors duration-300 [transition-timing-function:var(--ease-productive)] hover:text-[color:var(--text-inverse)] active:scale-[0.98]`}
-            aria-label="FDFS Home"
-          >
-            FDFS
-          </Link>
+          <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+            <Link
+              href="/home"
+              className={`${isMobile ? "text-[15px] min-h-[44px] inline-flex items-center px-2" : "text-[15px]"} font-semibold tracking-[0.14em] text-[color:var(--text-primary)] transition-colors duration-300 [transition-timing-function:var(--ease-productive)] hover:text-[color:var(--text-inverse)] active:scale-[0.98] shrink-0`}
+              aria-label="FDFS Home"
+            >
+              FDFS
+            </Link>
+            {showMediaTypeToggle && (
+              <div className="min-w-0 shrink">
+                <MediaTypeNavToggle />
+              </div>
+            )}
+          </div>
 
           {isMobile ? (
             <button

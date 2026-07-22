@@ -1,6 +1,7 @@
 import { supabase } from "./supabase/client"
-import { getMovieDetails, type MovieGenre } from "./tmdb"
-import { Movie, type Recommendation } from "./types"
+import { getMovieDetails, getTvDetails, type MovieGenre } from "./tmdb"
+import { resolveMediaType } from "./media"
+import { MediaItem, MediaType, Movie, type Recommendation } from "./types"
 
 async function getCurrentUserId(): Promise<string | null> {
   const {
@@ -11,8 +12,9 @@ async function getCurrentUserId(): Promise<string | null> {
   return user.id
 }
 
-type MovieRow = {
+type MediaRow = {
   tmdb_id: string
+  media_type?: string | null
   title: string
   year: number
   language: string
@@ -20,6 +22,8 @@ type MovieRow = {
   backdrop: string | null
   genres?: unknown
   runtime?: number | null
+  seasons?: number | null
+  episodes?: number | null
   watched_at?: string | null
   rating?: number | string | null
   review_headline?: string | null
@@ -44,27 +48,70 @@ function parseGenres(raw: unknown): MovieGenre[] {
   return []
 }
 
-async function resolveMetadataForMovie(movie: Movie): Promise<{
+function parseMediaType(raw: string | null | undefined): MediaType {
+  return raw === "tv" ? "tv" : "movie"
+}
+
+async function resolveMetadataForMedia(item: MediaItem): Promise<{
   genres: MovieGenre[]
   runtime: number | null
+  seasons: number | null
+  episodes: number | null
 }> {
-  const hasGenres = (movie.genres?.length ?? 0) > 0
-  const hasRuntime = movie.runtime != null && movie.runtime > 0
-  if (hasGenres && hasRuntime) {
-    return { genres: movie.genres!, runtime: movie.runtime! }
+  const mediaType = resolveMediaType(item)
+  const hasGenres = (item.genres?.length ?? 0) > 0
+  const hasRuntime = item.runtime != null && item.runtime > 0
+  const hasSeasons = item.seasons != null && item.seasons > 0
+  const hasEpisodes = item.episodes != null && item.episodes > 0
+
+  if (mediaType === "movie" && hasGenres && hasRuntime) {
+    return {
+      genres: item.genres!,
+      runtime: item.runtime!,
+      seasons: null,
+      episodes: null,
+    }
   }
 
-  const details = await getMovieDetails(movie.id)
+  if (mediaType === "tv" && hasGenres && hasSeasons && hasEpisodes) {
+    return {
+      genres: item.genres!,
+      runtime: hasRuntime ? item.runtime! : null,
+      seasons: item.seasons!,
+      episodes: item.episodes!,
+    }
+  }
+
+  if (mediaType === "tv") {
+    const details = await getTvDetails(item.id)
+    return {
+      genres: hasGenres ? item.genres! : (details?.genres ?? []),
+      runtime: hasRuntime ? item.runtime! : (details?.runtime ?? null),
+      seasons: hasSeasons ? item.seasons! : (details?.seasons ?? null),
+      episodes: hasEpisodes ? item.episodes! : (details?.episodes ?? null),
+    }
+  }
+
+  const details = await getMovieDetails(item.id)
   return {
-    genres: hasGenres ? movie.genres! : (details?.genres ?? []),
-    runtime: hasRuntime ? movie.runtime! : (details?.runtime ?? null),
+    genres: hasGenres ? item.genres! : (details?.genres ?? []),
+    runtime: hasRuntime ? item.runtime! : (details?.runtime ?? null),
+    seasons: null,
+    episodes: null,
   }
 }
 
-// Convert a Supabase row to the app's Movie type
-function rowToMovie(row: MovieRow): Movie {
+function toMediaItem(item: Movie | MediaItem): MediaItem {
+  return {
+    ...item,
+    mediaType: resolveMediaType(item),
+  }
+}
+
+function rowToMediaItem(row: MediaRow): MediaItem {
   return {
     id: row.tmdb_id,
+    mediaType: parseMediaType(row.media_type),
     title: row.title,
     year: row.year,
     language: row.language,
@@ -72,6 +119,8 @@ function rowToMovie(row: MovieRow): Movie {
     backdrop: row.backdrop || undefined,
     genres: parseGenres(row.genres),
     runtime: row.runtime ?? undefined,
+    seasons: row.seasons ?? undefined,
+    episodes: row.episodes ?? undefined,
     watchedAt: row.watched_at || undefined,
     rating:
       row.rating != null && row.rating !== ""
@@ -84,7 +133,7 @@ function rowToMovie(row: MovieRow): Movie {
 
 // ---- WATCHLIST ----
 
-export async function getWatchlist(): Promise<Movie[]> {
+export async function getWatchlist(): Promise<MediaItem[]> {
   const { data, error } = await supabase
     .from("watchlist")
     .select("*")
@@ -93,7 +142,7 @@ export async function getWatchlist(): Promise<Movie[]> {
     console.error("Error loading watchlist:", error.message)
     return []
   }
-  return (data || []).map(rowToMovie)
+  return (data || []).map(rowToMediaItem)
 }
 
 export type AddToWatchlistResult =
@@ -113,17 +162,17 @@ export function messageForAddToWatchlistFailure(
   }
 }
 
-/**
- * Adds to watchlist. Blocks if the film is already in `watched` (use the movie page
- * to rewatch + re-rate instead) or already on the watchlist.
- */
 export async function addToWatchlistDetailed(
-  movie: Movie,
+  item: Movie | MediaItem,
 ): Promise<AddToWatchlistResult> {
+  const media = toMediaItem(item)
+  const mediaType = media.mediaType
+
   const { data: alreadyWatched } = await supabase
     .from("watched")
     .select("id")
-    .eq("tmdb_id", movie.id)
+    .eq("tmdb_id", media.id)
+    .eq("media_type", mediaType)
     .limit(1)
   if (alreadyWatched && alreadyWatched.length > 0) {
     return { ok: false, reason: "already_watched" }
@@ -132,7 +181,8 @@ export async function addToWatchlistDetailed(
   const { data: existing } = await supabase
     .from("watchlist")
     .select("id")
-    .eq("tmdb_id", movie.id)
+    .eq("tmdb_id", media.id)
+    .eq("media_type", mediaType)
     .limit(1)
   if (existing && existing.length > 0) {
     return { ok: false, reason: "already_watchlisted" }
@@ -141,18 +191,21 @@ export async function addToWatchlistDetailed(
   const userId = await getCurrentUserId()
   if (!userId) return { ok: false, reason: "error" }
 
-  const { genres, runtime } = await resolveMetadataForMovie(movie)
+  const { genres, runtime, seasons, episodes } = await resolveMetadataForMedia(media)
 
   const { error } = await supabase.from("watchlist").insert({
     user_id: userId,
-    tmdb_id: movie.id,
-    title: movie.title,
-    year: movie.year,
-    language: movie.language,
-    poster: movie.poster,
-    backdrop: movie.backdrop || null,
+    tmdb_id: media.id,
+    media_type: mediaType,
+    title: media.title,
+    year: media.year,
+    language: media.language,
+    poster: media.poster,
+    backdrop: media.backdrop || null,
     genres,
     runtime,
+    seasons,
+    episodes,
   })
   if (error) {
     console.error("Error adding to watchlist:", error.message)
@@ -161,17 +214,20 @@ export async function addToWatchlistDetailed(
   return { ok: true }
 }
 
-/** Legacy boolean API. Prefer `addToWatchlistDetailed`. */
-export async function addToWatchlist(movie: Movie): Promise<boolean> {
+export async function addToWatchlist(movie: Movie | MediaItem): Promise<boolean> {
   const r = await addToWatchlistDetailed(movie)
   return r.ok
 }
 
-export async function removeFromWatchlist(tmdbId: string): Promise<boolean> {
+export async function removeFromWatchlist(
+  tmdbId: string,
+  mediaType: MediaType = "movie",
+): Promise<boolean> {
   const { error } = await supabase
     .from("watchlist")
     .delete()
     .eq("tmdb_id", tmdbId)
+    .eq("media_type", mediaType)
   if (error) {
     console.error("Error removing from watchlist:", error.message)
     return false
@@ -181,7 +237,7 @@ export async function removeFromWatchlist(tmdbId: string): Promise<boolean> {
 
 // ---- WATCHED ----
 
-export async function getWatched(): Promise<Movie[]> {
+export async function getWatched(): Promise<MediaItem[]> {
   const { data, error } = await supabase
     .from("watched")
     .select("*")
@@ -190,7 +246,7 @@ export async function getWatched(): Promise<Movie[]> {
     console.error("Error loading watched:", error.message)
     return []
   }
-  return (data || []).map(rowToMovie)
+  return (data || []).map(rowToMediaItem)
 }
 
 export type MarkAsWatchedResult =
@@ -208,19 +264,21 @@ export function messageForMarkWatchedFailure(
   }
 }
 
-/** rating: 1–10, supports 0.5 (e.g. 7.5) */
 export async function markAsWatchedDetailed(
-  movie: Movie,
+  item: Movie | MediaItem,
   rating: number,
   options?: { reviewBody?: string; watchedAt?: string },
 ): Promise<MarkAsWatchedResult> {
+  const media = toMediaItem(item)
+  const mediaType = media.mediaType
   const reviewBody = options?.reviewBody?.trim()
   const watchedAtIso = options?.watchedAt || new Date().toISOString()
 
   const { data: existing } = await supabase
     .from("watched")
     .select("id")
-    .eq("tmdb_id", movie.id)
+    .eq("tmdb_id", media.id)
+    .eq("media_type", mediaType)
     .limit(1)
 
   if (existing && existing.length > 0) {
@@ -231,12 +289,13 @@ export async function markAsWatchedDetailed(
         review_body: reviewBody || null,
         watched_at: watchedAtIso,
       })
-      .eq("tmdb_id", movie.id)
+      .eq("tmdb_id", media.id)
+      .eq("media_type", mediaType)
     if (updateError) {
-      console.error("Error updating watched movie:", updateError.message)
+      console.error("Error updating watched entry:", updateError.message)
       return { ok: false, reason: "error" }
     }
-    if (!(await deleteFromWatchlistVerified(movie.id))) {
+    if (!(await deleteFromWatchlistVerified(media.id, mediaType))) {
       return { ok: false, reason: "watchlist_delete_failed" }
     }
     return { ok: true }
@@ -245,18 +304,21 @@ export async function markAsWatchedDetailed(
   const userId = await getCurrentUserId()
   if (!userId) return { ok: false, reason: "error" }
 
-  const { genres, runtime } = await resolveMetadataForMovie(movie)
+  const { genres, runtime, seasons, episodes } = await resolveMetadataForMedia(media)
 
   const { error: insertError } = await supabase.from("watched").insert({
     user_id: userId,
-    tmdb_id: movie.id,
-    title: movie.title,
-    year: movie.year,
-    language: movie.language,
-    poster: movie.poster,
-    backdrop: movie.backdrop || null,
+    tmdb_id: media.id,
+    media_type: mediaType,
+    title: media.title,
+    year: media.year,
+    language: media.language,
+    poster: media.poster,
+    backdrop: media.backdrop || null,
     genres,
     runtime,
+    seasons,
+    episodes,
     rating,
     review_body: reviewBody || null,
     watched_at: watchedAtIso,
@@ -265,33 +327,30 @@ export async function markAsWatchedDetailed(
     console.error("Error marking as watched:", insertError.message)
     return { ok: false, reason: "error" }
   }
-  if (!(await deleteFromWatchlistVerified(movie.id))) {
+  if (!(await deleteFromWatchlistVerified(media.id, mediaType))) {
     return { ok: false, reason: "watchlist_delete_failed" }
   }
   return { ok: true }
 }
 
-/** Legacy boolean API. Prefer `markAsWatchedDetailed`. */
 export async function markAsWatched(
-  movie: Movie,
+  item: Movie | MediaItem,
   rating: number,
   options?: { reviewBody?: string; watchedAt?: string },
 ): Promise<boolean> {
-  const r = await markAsWatchedDetailed(movie, rating, options)
+  const r = await markAsWatchedDetailed(item, rating, options)
   return r.ok
 }
 
-/**
- * Deletes watchlist row(s) for tmdbId and verifies the row is actually gone.
- * Returns false only if a row still exists after the delete (silent RLS
- * no-ops, trigger blocks, or actual DB errors). Returns true if the row is
- * gone — including the case where it was never there in the first place.
- */
-async function deleteFromWatchlistVerified(tmdbId: string): Promise<boolean> {
+async function deleteFromWatchlistVerified(
+  tmdbId: string,
+  mediaType: MediaType = "movie",
+): Promise<boolean> {
   const { error: delError } = await supabase
     .from("watchlist")
     .delete()
     .eq("tmdb_id", tmdbId)
+    .eq("media_type", mediaType)
   if (delError) {
     console.error("Watchlist delete failed:", delError.message)
     return false
@@ -300,6 +359,7 @@ async function deleteFromWatchlistVerified(tmdbId: string): Promise<boolean> {
     .from("watchlist")
     .select("id")
     .eq("tmdb_id", tmdbId)
+    .eq("media_type", mediaType)
     .limit(1)
   if (verifyError) {
     console.error("Watchlist verify failed:", verifyError.message)
@@ -309,21 +369,23 @@ async function deleteFromWatchlistVerified(tmdbId: string): Promise<boolean> {
     console.error(
       "Watchlist row persists after delete (RLS or trigger?):",
       tmdbId,
+      mediaType,
     )
     return false
   }
   return true
 }
 
-/** Update rating for an already-watched film (e.g. 7 → 7.5) */
 export async function updateWatchedRating(
   tmdbId: string,
-  rating: number
+  rating: number,
+  mediaType: MediaType = "movie",
 ): Promise<boolean> {
   const { error } = await supabase
     .from("watched")
     .update({ rating })
     .eq("tmdb_id", tmdbId)
+    .eq("media_type", mediaType)
   if (error) {
     console.error("Error updating rating:", error.message)
     return false
@@ -334,7 +396,8 @@ export async function updateWatchedRating(
 export async function updateReview(
   tmdbId: string,
   headline: string,
-  body?: string
+  body?: string,
+  mediaType: MediaType = "movie",
 ): Promise<boolean> {
   const { error } = await supabase
     .from("watched")
@@ -343,6 +406,7 @@ export async function updateReview(
       review_body: body || null,
     })
     .eq("tmdb_id", tmdbId)
+    .eq("media_type", mediaType)
 
   if (error) {
     console.error("Error updating review:", error.message)
@@ -420,7 +484,6 @@ export async function getUnshownCount(): Promise<number> {
   return count ?? 0
 }
 
-/** API-shaped item before DB insert (no id/shown/addedAt) */
 export type RecommendationInsert = {
   tmdbId: string
   title: string
@@ -434,7 +497,6 @@ export type RecommendationInsert = {
 export async function clearAndInsertRecommendations(
   recommendations: RecommendationInsert[]
 ): Promise<boolean> {
-  // Delete all rows (added_at is always set by default)
   const { error: delError } = await supabase
     .from("recommendations")
     .delete()
@@ -452,6 +514,7 @@ export async function clearAndInsertRecommendations(
   const rows = recommendations.map((r) => ({
     user_id: userId,
     tmdb_id: String(r.tmdbId),
+    media_type: "movie" as const,
     title: r.title,
     year: r.year,
     language: r.language,

@@ -11,10 +11,12 @@ import {
   addToWatchlistDetailed,
   messageForAddToWatchlistFailure,
 } from "@/lib/db"
-import type { Movie } from "@/lib/types"
+import type { MediaItem } from "@/lib/types"
+import { filterByMediaType, mediaDetailPath, resolveMediaType } from "@/lib/media"
 import { formatLanguage } from "@/lib/tmdb"
+import { useMediaTypeFilterFromUrl } from "@/hooks/useMediaTypeFilterFromUrl"
 import StandingOvationInput from "@/components/StandingOvationInput"
-import MovieSearch from "@/components/MovieSearch"
+import MediaSearch from "@/components/MediaSearch"
 import FilterChip from "@/components/FilterChip"
 import { MOBILE_TAB_BAR_INSET, useIsMobile } from "@/hooks/useIsMobile"
 
@@ -24,7 +26,7 @@ function FilmFrame({
   onPosterClick,
   onTitleClick,
 }: {
-  film: Movie
+  film: MediaItem
   isCentered: boolean
   onPosterClick: () => void
   onTitleClick: () => void
@@ -170,14 +172,15 @@ const CARD_WIDTH = 280
 const CARD_GAP = 20
 const CARD_TOTAL = CARD_WIDTH + CARD_GAP
 
-function filmHasGenre(film: Movie, genre: string) {
+function filmHasGenre(film: MediaItem, genre: string) {
   return (film.genres || []).some((g) => g.name === genre)
 }
 
 export default function WatchlistPage() {
-  const [watchlist, setWatchlist] = useState<Movie[]>([])
-  const [watched, setWatched] = useState<Movie[]>([])
+  const [watchlist, setWatchlist] = useState<MediaItem[]>([])
+  const [watched, setWatched] = useState<MediaItem[]>([])
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
+  const { mediaTypeFilter } = useMediaTypeFilterFromUrl()
   const [searchOpen, setSearchOpen] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -240,14 +243,24 @@ export default function WatchlistPage() {
       .map(([name]) => name)
   }, [watched])
 
+  const filteredWatchlist = useMemo(
+    () => filterByMediaType(watchlist, mediaTypeFilter),
+    [watchlist, mediaTypeFilter],
+  )
+  const displayWatchlist = filteredWatchlist
+
+  useEffect(() => {
+    setCenteredIndex(0)
+  }, [mediaTypeFilter])
+
   const pickPoolIndices = useMemo(() => {
     if (!selectedGenre) {
-      return watchlist.map((_, i) => i)
+      return displayWatchlist.map((_, i) => i)
     }
-    return watchlist
+    return displayWatchlist
       .map((film, i) => (filmHasGenre(film, selectedGenre) ? i : -1))
       .filter((i) => i >= 0)
-  }, [watchlist, selectedGenre])
+  }, [displayWatchlist, selectedGenre])
 
   const modalBottom = isMobile
     ? `calc(${MOBILE_TAB_BAR_INSET} + 16px)`
@@ -255,8 +268,8 @@ export default function WatchlistPage() {
 
   const navTopPad = isMobile ? 56 : 72
 
-  const handleAdd = async (movie: Movie) => {
-    const result = await addToWatchlistDetailed(movie)
+  const handleAdd = async (item: MediaItem) => {
+    const result = await addToWatchlistDetailed(item)
     if (result.ok) {
       const fresh = await getWatchlist()
       setWatchlist(fresh)
@@ -302,34 +315,34 @@ export default function WatchlistPage() {
 
   const scrollStrip = useCallback(
     (direction: -1 | 1) => {
-      if (watchlist.length <= 1) return
+      if (displayWatchlist.length <= 1) return
       setCenteredIndex((prev) => {
         const pool =
           selectedGenre && pickPoolIndices.length > 0
             ? pickPoolIndices
-            : watchlist.map((_, i) => i)
+            : displayWatchlist.map((_, i) => i)
         const pos = pool.indexOf(prev)
         if (pos < 0) {
           const fallback = pool[0]
-          syncStripToIndex(fallback, watchlist.length, { setState: false })
+          syncStripToIndex(fallback, displayWatchlist.length, { setState: false })
           return fallback
         }
         const nextPos = pos + direction
         if (nextPos < 0 || nextPos >= pool.length) return prev
         const next = pool[nextPos]
-        syncStripToIndex(next, watchlist.length, { setState: false })
+        syncStripToIndex(next, displayWatchlist.length, { setState: false })
         return next
       })
     },
-    [watchlist.length, selectedGenre, pickPoolIndices, syncStripToIndex]
+    [displayWatchlist.length, displayWatchlist, selectedGenre, pickPoolIndices, syncStripToIndex]
   )
 
   // Keep the centered poster in sync when a genre filter is active
   useEffect(() => {
     if (!selectedGenre || pickPoolIndices.length === 0) return
     if (pickPoolIndices.includes(centeredIndex)) return
-    syncStripToIndex(pickPoolIndices[0], watchlist.length)
-  }, [selectedGenre, pickPoolIndices, centeredIndex, watchlist.length, syncStripToIndex])
+    syncStripToIndex(pickPoolIndices[0], displayWatchlist.length)
+  }, [selectedGenre, pickPoolIndices, centeredIndex, displayWatchlist.length, syncStripToIndex])
 
   const showCopyHint = useCallback((message: string) => {
     setCopyHint(message)
@@ -338,7 +351,7 @@ export default function WatchlistPage() {
   }, [])
 
   const copyFilmTitle = useCallback(
-    async (film: Movie) => {
+    async (film: MediaItem) => {
       try {
         await navigator.clipboard.writeText(film.title)
         showCopyHint(`Copied “${film.title}”`)
@@ -365,11 +378,11 @@ export default function WatchlistPage() {
 
   const openFilmPage = useCallback(
     (index: number) => {
-      const film = watchlist[index]
+      const film = displayWatchlist[index]
       if (!film) return
-      router.push(`/movie/${film.id}`)
+      router.push(mediaDetailPath(film))
     },
-    [watchlist, router],
+    [displayWatchlist, router],
   )
 
   useEffect(() => {
@@ -380,7 +393,7 @@ export default function WatchlistPage() {
 
   // Keyboard: Left/Right arrows move the strip one film at a time
   useEffect(() => {
-    if (watchlist.length <= 1) return
+    if (displayWatchlist.length <= 1) return
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return
       const t = e.target as HTMLElement
@@ -397,10 +410,10 @@ export default function WatchlistPage() {
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [watchlist.length, scrollStrip])
+  }, [displayWatchlist.length, scrollStrip])
 
   const handleMarkWatched = async (
-    film: Movie,
+    film: MediaItem,
     rating: number,
     reviewBody?: string,
     watchedAt?: string
@@ -450,7 +463,7 @@ export default function WatchlistPage() {
   }
 
   const submitWatchedFlow = (skipReview: boolean) => {
-    const film = watchlist[centeredIndex]
+    const film = displayWatchlist[centeredIndex]
     if (!film || pendingRating == null) return
     const watchedAt = alreadyWatchedEarlier && watchedDate
       ? dateInputToIso(watchedDate)
@@ -459,13 +472,15 @@ export default function WatchlistPage() {
     handleMarkWatched(film, pendingRating, reviewBody, watchedAt)
   }
 
-  const handleRemove = async (film: Movie) => {
+  const handleRemove = async (film: MediaItem) => {
     if (actionLoading) return
     setActionLoading(true)
     try {
-      const success = await removeFromWatchlist(film.id)
+      const success = await removeFromWatchlist(film.id, resolveMediaType(film))
       if (success) {
-        const updated = watchlist.filter((m) => m.id !== film.id)
+        const updated = watchlist.filter(
+          (m) => !(m.id === film.id && resolveMediaType(m) === resolveMediaType(film)),
+        )
         if (updated.length === 0) {
           setWatchlist([])
           setCenteredIndex(0)
@@ -495,19 +510,19 @@ export default function WatchlistPage() {
       }
       const scrollLeft = el.scrollLeft
       const index = Math.floor((scrollLeft + CARD_TOTAL / 2) / CARD_TOTAL)
-      const clamped = Math.max(0, Math.min(index, watchlist.length - 1))
+      const clamped = Math.max(0, Math.min(index, displayWatchlist.length - 1))
       setCenteredIndex((prev) => (prev === clamped ? prev : clamped))
       scrollTickingRef.current = false
     })
-  }, [isSpinning, watchlist.length])
+  }, [isSpinning, displayWatchlist.length])
 
   const handleSpin = useCallback(() => {
-    if (isSpinning || watchlist.length === 0 || !stripRef.current) return
+    if (isSpinning || displayWatchlist.length === 0 || !stripRef.current) return
 
     const pool =
       pickPoolIndices.length > 0
         ? pickPoolIndices
-        : watchlist.map((_, i) => i)
+        : displayWatchlist.map((_, i) => i)
 
     if (pool.length === 0) return
 
@@ -516,7 +531,7 @@ export default function WatchlistPage() {
     const randomIndex = pool[Math.floor(Math.random() * pool.length)]
     const targetScroll = randomIndex * CARD_TOTAL
     const startScroll = stripRef.current.scrollLeft
-    const totalDistance = watchlist.length * CARD_TOTAL * 2 + targetScroll
+    const totalDistance = displayWatchlist.length * CARD_TOTAL * 2 + targetScroll
     const duration = 3000
     const startTime = Date.now()
     const strip = stripRef.current
@@ -528,7 +543,7 @@ export default function WatchlistPage() {
 
       if (strip) {
         const raw = startScroll + eased * totalDistance
-        const wrapped = raw % (watchlist.length * CARD_TOTAL)
+        const wrapped = raw % (displayWatchlist.length * CARD_TOTAL)
         strip.scrollLeft = wrapped
       }
 
@@ -544,7 +559,7 @@ export default function WatchlistPage() {
     }
 
     requestAnimationFrame(animate)
-  }, [isSpinning, watchlist.length, pickPoolIndices])
+  }, [isSpinning, displayWatchlist.length, pickPoolIndices])
 
   if (loading) {
     return (
@@ -618,6 +633,21 @@ export default function WatchlistPage() {
             Search for a film and add it to your watchlist.
           </p>
         </div>
+      ) : displayWatchlist.length === 0 ? (
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "80px 24px",
+            textAlign: "center",
+          }}
+        >
+          <p className="t-body" style={{ color: "var(--text-dim)", maxWidth: 420 }}>
+            Nothing on your watchlist matches this filter.
+          </p>
+        </div>
       ) : (
         <div
           style={{
@@ -648,13 +678,25 @@ export default function WatchlistPage() {
               <div
                 style={{
                   display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
-                  justifyContent: "center",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
                 }}
               >
+                <span className="t-caption" style={{ color: "var(--text-label)" }}>
+                  Genre
+                </span>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 6,
+                    justifyContent: "center",
+                  }}
+                >
                 <FilterChip
-                  label="All"
+                  label="Any genre"
                   active={selectedGenre === null}
                   onClick={() => setSelectedGenre(null)}
                 />
@@ -670,6 +712,7 @@ export default function WatchlistPage() {
                     }
                   />
                 ))}
+                </div>
               </div>
             )}
             <p
@@ -729,7 +772,7 @@ export default function WatchlistPage() {
                 msOverflowStyle: "none" as const,
               }}
             >
-              {watchlist.map((film, i) => (
+              {displayWatchlist.map((film, i) => (
                 <div key={film.id} style={{ scrollSnapAlign: "center" }}>
                   <FilmFrame
                     film={film}
@@ -744,7 +787,7 @@ export default function WatchlistPage() {
             <SprocketRow />
 
           {/* Left / right strip navigation */}
-          {watchlist.length > 1 && (
+          {displayWatchlist.length > 1 && (
             <>
               <button
                 type="button"
@@ -832,7 +875,7 @@ export default function WatchlistPage() {
                   selectedGenre && pickPoolIndices.length > 0
                     ? pickPoolIndices.indexOf(centeredIndex) >=
                       pickPoolIndices.length - 1
-                    : centeredIndex >= watchlist.length - 1
+                    : centeredIndex >= displayWatchlist.length - 1
                 }
                 onClick={() => scrollStrip(1)}
                 style={{
@@ -849,7 +892,7 @@ export default function WatchlistPage() {
                     (selectedGenre && pickPoolIndices.length > 0
                       ? pickPoolIndices.indexOf(centeredIndex) >=
                         pickPoolIndices.length - 1
-                      : centeredIndex >= watchlist.length - 1)
+                      : centeredIndex >= displayWatchlist.length - 1)
                       ? "rgba(255,255,255,0.02)"
                       : "rgba(255,255,255,0.06)",
                   backdropFilter: "blur(8px)",
@@ -859,14 +902,14 @@ export default function WatchlistPage() {
                     (selectedGenre && pickPoolIndices.length > 0
                       ? pickPoolIndices.indexOf(centeredIndex) >=
                         pickPoolIndices.length - 1
-                      : centeredIndex >= watchlist.length - 1)
+                      : centeredIndex >= displayWatchlist.length - 1)
                       ? "rgba(255,255,255,0.15)"
                       : "rgba(255,255,255,0.5)",
                   cursor:
                     (selectedGenre && pickPoolIndices.length > 0
                       ? pickPoolIndices.indexOf(centeredIndex) >=
                         pickPoolIndices.length - 1
-                      : centeredIndex >= watchlist.length - 1)
+                      : centeredIndex >= displayWatchlist.length - 1)
                       ? "default"
                       : "pointer",
                   display: "flex",
@@ -879,7 +922,7 @@ export default function WatchlistPage() {
                     selectedGenre && pickPoolIndices.length > 0
                       ? pickPoolIndices.indexOf(centeredIndex) >=
                         pickPoolIndices.length - 1
-                      : centeredIndex >= watchlist.length - 1
+                      : centeredIndex >= displayWatchlist.length - 1
                   if (atEnd) return
                   e.currentTarget.style.background = "rgba(255,255,255,0.12)"
                   e.currentTarget.style.color = "rgba(255,255,255,0.9)"
@@ -890,7 +933,7 @@ export default function WatchlistPage() {
                     selectedGenre && pickPoolIndices.length > 0
                       ? pickPoolIndices.indexOf(centeredIndex) >=
                         pickPoolIndices.length - 1
-                      : centeredIndex >= watchlist.length - 1
+                      : centeredIndex >= displayWatchlist.length - 1
                   if (atEnd) return
                   e.currentTarget.style.background = "rgba(255,255,255,0.06)"
                   e.currentTarget.style.color = "rgba(255,255,255,0.5)"
@@ -937,7 +980,7 @@ export default function WatchlistPage() {
           </section>
 
           {/* Action dock — below reel, never on top of posters */}
-          {watchlist[centeredIndex] && (
+          {displayWatchlist[centeredIndex] && (
             <section
               aria-label="Film actions"
               style={{
@@ -990,7 +1033,7 @@ export default function WatchlistPage() {
               </button>
 
               <div className="t-label" style={{ color: "rgba(255,255,255,0.2)" }}>
-                {centeredIndex + 1} of {watchlist.length}
+                {centeredIndex + 1} of {displayWatchlist.length}
               </div>
               {!showRating && !showReviewStep && (
                 <p
@@ -1066,7 +1109,7 @@ export default function WatchlistPage() {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
-                      handleRemove(watchlist[centeredIndex])
+                      handleRemove(displayWatchlist[centeredIndex])
                     }}
                     style={{
                       width: 44,
@@ -1151,7 +1194,7 @@ export default function WatchlistPage() {
                         marginBottom: 14,
                       }}
                     >
-                      {watchlist[centeredIndex]?.title}
+                      {displayWatchlist[centeredIndex]?.title}
                     </div>
                     <div
                       style={{
@@ -1236,7 +1279,7 @@ export default function WatchlistPage() {
                         marginBottom: 14,
                       }}
                     >
-                      {watchlist[centeredIndex]?.title}
+                      {displayWatchlist[centeredIndex]?.title}
                       {pendingRating != null ? ` · ${pendingRating}/10` : ""}
                     </div>
 
@@ -1422,7 +1465,7 @@ export default function WatchlistPage() {
       )}
 
       {searchOpen && (
-        <MovieSearch onAdd={handleAdd} onClose={() => setSearchOpen(false)} />
+        <MediaSearch onAdd={handleAdd} onClose={() => setSearchOpen(false)} />
       )}
     </main>
   )

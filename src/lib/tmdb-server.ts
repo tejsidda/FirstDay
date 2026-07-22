@@ -40,6 +40,32 @@ export async function fetchMovieDetails(id: string) {
   return res.json()
 }
 
+export async function fetchTvDetails(id: string) {
+  const res = await fetch(`${BASE}/tv/${id}?language=en-US`, {
+    headers: authHeaders(),
+    ...CACHE_1H,
+  })
+  if (!res.ok) return null
+  return res.json()
+}
+
+export async function fetchTvCredits(tmdbId: string) {
+  const res = await fetch(`${BASE}/tv/${tmdbId}/credits?language=en-US`, {
+    headers: authHeaders(),
+    ...CACHE_1H,
+  })
+  if (!res.ok) return { creators: [] as string[], cast: [] as string[] }
+  const data = await res.json()
+  const creators = (data.crew || [])
+    .filter((p: { job?: string }) => p.job === "Creator" || p.job === "Executive Producer")
+    .slice(0, 3)
+    .map((p: { name: string }) => p.name)
+  return {
+    creators: creators.length > 0 ? creators : ["Unknown"],
+    cast: (data.cast || []).slice(0, 20).map((p: { name: string }) => p.name),
+  }
+}
+
 export async function fetchMovieCredits(tmdbId: string) {
   const res = await fetch(`${BASE}/movie/${tmdbId}/credits?language=en-US`, {
     headers: authHeaders(),
@@ -131,6 +157,64 @@ export async function getMovieBackdrops(
   let res: Response
   try {
     res = await fetch(`${BASE}/movie/${tmdbId}/images?include_image_language=en,null`, {
+      headers: authHeaders(),
+      ...CACHE_1H,
+    })
+  } catch {
+    res = new Response(null, { status: 500 })
+  }
+
+  if (!res.ok) {
+    if (fallback?.posterPath) {
+      return { urls: [posterURL(fallback.posterPath, "w1280")], fromPoster: true }
+    }
+    if (fallback?.backdropPath) {
+      return { urls: [backdropURL(fallback.backdropPath)], fromPoster: false }
+    }
+    return { urls: [], fromPoster: false }
+  }
+
+  const data = await res.json()
+  const sorted = rankBackdrops((data.backdrops || []) as TmdbBackdrop[])
+  const seen = new Set<string>()
+
+  let picks = pickQualified(sorted, MIN_BACKDROP_WIDTH, MIN_BACKDROP_HEIGHT, MAX_MOVIE_BACKDROPS, seen)
+  if (picks.length < MAX_MOVIE_BACKDROPS) {
+    picks = [
+      ...picks,
+      ...pickQualified(
+        sorted,
+        RELAXED_BACKDROP_WIDTH,
+        RELAXED_BACKDROP_HEIGHT,
+        MAX_MOVIE_BACKDROPS - picks.length,
+        seen
+      ),
+    ]
+  }
+
+  if (picks.length > 0) {
+    return {
+      urls: picks.map((img) => backdropURL(img.file_path)),
+      fromPoster: false,
+    }
+  }
+
+  if (fallback?.posterPath) {
+    return { urls: [posterURL(fallback.posterPath, "w1280")], fromPoster: true }
+  }
+  if (fallback?.backdropPath) {
+    return { urls: [backdropURL(fallback.backdropPath)], fromPoster: false }
+  }
+  return { urls: [], fromPoster: false }
+}
+
+export async function getTvBackdrops(
+  tmdbId: string,
+  fallback?: { posterPath?: string | null; backdropPath?: string | null }
+): Promise<MovieBackdropResult> {
+  let res: Response
+  try {
+    res = await fetch(`${BASE}/tv/${tmdbId}/images?include_image_language=en,null`, {
       headers: authHeaders(),
       ...CACHE_1H,
     })
