@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   getWatchlist,
@@ -176,7 +176,7 @@ function filmHasGenre(film: MediaItem, genre: string) {
   return (film.genres || []).some((g) => g.name === genre)
 }
 
-export default function WatchlistPage() {
+function WatchlistPageContent() {
   const [watchlist, setWatchlist] = useState<MediaItem[]>([])
   const [watched, setWatched] = useState<MediaItem[]>([])
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null)
@@ -1468,5 +1468,13 @@ export default function WatchlistPage() {
         <MediaSearch onAdd={handleAdd} onClose={() => setSearchOpen(false)} />
       )}
     </main>
+  )
+}
+
+export default function WatchlistPage() {
+  return (
+    <Suspense fallback={null}>
+      <WatchlistPageContent />
+    </Suspense>
   )
 }

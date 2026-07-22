@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { posterURL } from "@/lib/tmdb"
 import {
   fetchTvDetails,
@@ -38,13 +39,15 @@ export default async function TvDetailPage({
   })
 
   return (
-    <TvDetailClient
-      tmdbId={tmdbId}
-      show={show}
-      credits={credits}
-      backdrops={serverBackdrops}
-      backdropFromPoster={backdropFromPoster}
-      serverPosterSrc={serverPosterSrc}
-    />
+    <Suspense fallback={null}>
+      <TvDetailClient
+        tmdbId={tmdbId}
+        show={show}
+        credits={credits}
+        backdrops={serverBackdrops}
+        backdropFromPoster={backdropFromPoster}
+        serverPosterSrc={serverPosterSrc}
+      />
+    </Suspense>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   getWatched,
@@ -122,7 +122,7 @@ function LibraryPoster({
   )
 }
 
-export default function LibraryPage() {
+function LibraryPageContent() {
   const [watched, setWatched] = useState<MediaItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedLanguage, setSelectedLanguage] = useState(ANY_LANGUAGE)
@@ -393,6 +393,14 @@ export default function LibraryPage() {
         />
       )}
     </main>
+  )
+}
+
+export default function LibraryPage() {
+  return (
+    <Suspense fallback={null}>
+      <LibraryPageContent />
+    </Suspense>
   )
 }
 
