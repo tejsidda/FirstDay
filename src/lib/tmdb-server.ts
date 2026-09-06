@@ -19,6 +19,22 @@ function authHeaders(): HeadersInit {
 
 const CACHE_1H = { next: { revalidate: 3600 } } as const
 
+async function tmdbFetch(url: string): Promise<Response | null> {
+  if (!getTmdbToken()) {
+    console.error("TMDB_TOKEN is not configured")
+    return null
+  }
+  try {
+    return await fetch(url, {
+      headers: authHeaders(),
+      ...CACHE_1H,
+    })
+  } catch (error) {
+    console.error("TMDB fetch failed:", url, error)
+    return null
+  }
+}
+
 function proxyTmdbImage(url: string) {
   return `/api/poster-proxy?url=${encodeURIComponent(url)}`
 }
@@ -32,29 +48,20 @@ export function backdropURL(path: string, size = "w1280") {
 }
 
 export async function fetchMovieDetails(id: string) {
-  const res = await fetch(`${BASE}/movie/${id}?language=en-US`, {
-    headers: authHeaders(),
-    ...CACHE_1H,
-  })
-  if (!res.ok) return null
+  const res = await tmdbFetch(`${BASE}/movie/${id}?language=en-US`)
+  if (!res?.ok) return null
   return res.json()
 }
 
 export async function fetchTvDetails(id: string) {
-  const res = await fetch(`${BASE}/tv/${id}?language=en-US`, {
-    headers: authHeaders(),
-    ...CACHE_1H,
-  })
-  if (!res.ok) return null
+  const res = await tmdbFetch(`${BASE}/tv/${id}?language=en-US`)
+  if (!res?.ok) return null
   return res.json()
 }
 
 export async function fetchTvCredits(tmdbId: string) {
-  const res = await fetch(`${BASE}/tv/${tmdbId}/credits?language=en-US`, {
-    headers: authHeaders(),
-    ...CACHE_1H,
-  })
-  if (!res.ok) return { creators: [] as string[], cast: [] as string[] }
+  const res = await tmdbFetch(`${BASE}/tv/${tmdbId}/credits?language=en-US`)
+  if (!res?.ok) return { creators: [] as string[], cast: [] as string[] }
   const data = await res.json()
   const creators = (data.crew || [])
     .filter((p: { job?: string }) => p.job === "Creator" || p.job === "Executive Producer")
@@ -67,11 +74,8 @@ export async function fetchTvCredits(tmdbId: string) {
 }
 
 export async function fetchMovieCredits(tmdbId: string) {
-  const res = await fetch(`${BASE}/movie/${tmdbId}/credits?language=en-US`, {
-    headers: authHeaders(),
-    ...CACHE_1H,
-  })
-  if (!res.ok) return { director: "Unknown", cast: [] as string[] }
+  const res = await tmdbFetch(`${BASE}/movie/${tmdbId}/credits?language=en-US`)
+  if (!res?.ok) return { director: "Unknown", cast: [] as string[] }
   const data = await res.json()
   const director = (data.crew || []).find((p: { job?: string }) => p.job === "Director")
   return {
@@ -81,21 +85,15 @@ export async function fetchMovieCredits(tmdbId: string) {
 }
 
 export async function fetchMovieKeywords(tmdbId: string): Promise<string[]> {
-  const res = await fetch(`${BASE}/movie/${tmdbId}/keywords`, {
-    headers: authHeaders(),
-    ...CACHE_1H,
-  })
-  if (!res.ok) return []
+  const res = await tmdbFetch(`${BASE}/movie/${tmdbId}/keywords`)
+  if (!res?.ok) return []
   const data = await res.json()
   return (data.keywords || []).map((k: { name: string }) => k.name)
 }
 
 export async function fetchMovieImages(tmdbId: string): Promise<string[]> {
-  const res = await fetch(`${BASE}/movie/${tmdbId}/images`, {
-    headers: authHeaders(),
-    ...CACHE_1H,
-  })
-  if (!res.ok) return []
+  const res = await tmdbFetch(`${BASE}/movie/${tmdbId}/images`)
+  if (!res?.ok) return []
   const data = await res.json()
   return (data.backdrops || [])
     .slice(0, 3)
@@ -154,17 +152,9 @@ export async function getMovieBackdrops(
   tmdbId: string,
   fallback?: { posterPath?: string | null; backdropPath?: string | null }
 ): Promise<MovieBackdropResult> {
-  let res: Response
-  try {
-    res = await fetch(`${BASE}/movie/${tmdbId}/images?include_image_language=en,null`, {
-      headers: authHeaders(),
-      ...CACHE_1H,
-    })
-  } catch {
-    res = new Response(null, { status: 500 })
-  }
+  const res = await tmdbFetch(`${BASE}/movie/${tmdbId}/images?include_image_language=en,null`)
 
-  if (!res.ok) {
+  if (!res?.ok) {
     if (fallback?.posterPath) {
       return { urls: [posterURL(fallback.posterPath, "w1280")], fromPoster: true }
     }
@@ -212,17 +202,9 @@ export async function getTvBackdrops(
   tmdbId: string,
   fallback?: { posterPath?: string | null; backdropPath?: string | null }
 ): Promise<MovieBackdropResult> {
-  let res: Response
-  try {
-    res = await fetch(`${BASE}/tv/${tmdbId}/images?include_image_language=en,null`, {
-      headers: authHeaders(),
-      ...CACHE_1H,
-    })
-  } catch {
-    res = new Response(null, { status: 500 })
-  }
+  const res = await tmdbFetch(`${BASE}/tv/${tmdbId}/images?include_image_language=en,null`)
 
-  if (!res.ok) {
+  if (!res?.ok) {
     if (fallback?.posterPath) {
       return { urls: [posterURL(fallback.posterPath, "w1280")], fromPoster: true }
     }
@@ -267,18 +249,18 @@ export async function getTvBackdrops(
 }
 
 export async function fetchPersonFilmography(personName: string) {
-  const searchRes = await fetch(
+  const searchRes = await tmdbFetch(
     `${BASE}/search/person?query=${encodeURIComponent(personName)}&language=en-US&page=1`,
-    { headers: authHeaders(), ...CACHE_1H }
   )
+  if (!searchRes?.ok) return []
+
   const searchData = await searchRes.json()
   if (!searchData.results?.length) return []
 
   const personId = searchData.results[0].id
-  const creditsRes = await fetch(`${BASE}/person/${personId}/movie_credits?language=en-US`, {
-    headers: authHeaders(),
-    ...CACHE_1H,
-  })
+  const creditsRes = await tmdbFetch(`${BASE}/person/${personId}/movie_credits?language=en-US`)
+  if (!creditsRes?.ok) return []
+
   const creditsData = await creditsRes.json()
 
   const castFilms = (creditsData.cast || [])

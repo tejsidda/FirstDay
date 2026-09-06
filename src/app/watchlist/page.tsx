@@ -19,6 +19,8 @@ import StandingOvationInput from "@/components/StandingOvationInput"
 import MediaSearch from "@/components/MediaSearch"
 import FilterChip from "@/components/FilterChip"
 import { MOBILE_TAB_BAR_INSET, useIsMobile } from "@/hooks/useIsMobile"
+import { PULL_REFRESH_EVENT } from "@/lib/pullToRefresh"
+import { isDemoSetupMode } from "@/lib/guest-mode"
 
 function FilmFrame({
   film,
@@ -36,11 +38,11 @@ function FilmFrame({
       style={{
         flexShrink: 0,
         width: 280,
-        transition: "all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-        transform: isCentered ? "scale(1.15)" : "scale(0.85)",
+        transition: "opacity 0.5s ease, filter 0.5s ease",
         opacity: isCentered ? 1 : 0.35,
         filter: isCentered ? "brightness(1)" : "brightness(0.6)",
         zIndex: isCentered ? 10 : 1,
+        position: "relative",
       }}
     >
       <div
@@ -54,54 +56,68 @@ function FilmFrame({
           transition: "box-shadow 0.5s ease",
         }}
       >
-        <button
-          type="button"
-          aria-label={`Open ${film.title}`}
-          onClick={(e) => {
-            e.stopPropagation()
-            onPosterClick()
-          }}
+        <div
           style={{
-            display: "block",
             width: "100%",
-            padding: 0,
-            border: "none",
-            background: "none",
-            cursor: "pointer",
-            borderRadius: 2,
+            marginLeft: "auto",
+            marginRight: "auto",
+            maxHeight: isCentered ? "min(46vh, 380px)" : "min(38vh, 320px)",
+            aspectRatio: "2/3",
+            transition: "max-height 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
           }}
         >
-          <div style={{ aspectRatio: "2/3", overflow: "hidden", borderRadius: 2 }}>
-            <img
-              src={film.poster}
-              alt=""
-              onError={(e) => {
-                e.currentTarget.src = "/fallback-poster.jpg"
-              }}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                display: "block",
-                pointerEvents: "none",
-              }}
-            />
-          </div>
-        </button>
+          <button
+            type="button"
+            aria-label={`Open ${film.title}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              onPosterClick()
+            }}
+            style={{
+              display: "block",
+              width: "100%",
+              height: "100%",
+              padding: 0,
+              border: "none",
+              background: "none",
+              cursor: "pointer",
+              borderRadius: 2,
+            }}
+          >
+            <div style={{ width: "100%", height: "100%", overflow: "hidden", borderRadius: 2 }}>
+              <img
+                src={film.poster}
+                alt=""
+                onError={(e) => {
+                  e.currentTarget.src = "/fallback-poster.jpg"
+                }}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  display: "block",
+                  pointerEvents: "none",
+                }}
+              />
+            </div>
+          </button>
+        </div>
 
         <div
           style={{
-            marginTop: 10,
+            marginTop: isCentered ? 4 : 8,
             textAlign: "center",
             flexShrink: 0,
-            minHeight: isCentered ? 48 : 36,
+            position: "relative",
+            zIndex: 2,
+            padding: "0 4px",
           }}
         >
           <button
             type="button"
             className={isCentered ? "t-title" : "t-caption"}
             aria-label={`Copy title: ${film.title}`}
-            title="Copy title"
+            title={film.title}
             onClick={(e) => {
               e.stopPropagation()
               onTitleClick()
@@ -109,18 +125,31 @@ function FilmFrame({
             style={{
               fontStyle: "italic",
               fontFamily: "var(--font-display)",
+              fontSize: isCentered ? 16 : 13,
               color: isCentered
-                ? "rgba(255,255,255,0.85)"
-                : "rgba(255,255,255,0.3)",
-              transition: "all 0.5s ease",
+                ? "rgba(255,255,255,0.92)"
+                : "rgba(255,255,255,0.45)",
+              transition: "color 0.5s ease",
               background: "none",
               border: "none",
               padding: 0,
               cursor: "copy",
               width: "100%",
+              display: "block",
             }}
           >
-            {film.title}
+            <span
+              style={{
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+                lineHeight: 1.35,
+                wordBreak: "break-word",
+              }}
+            >
+              {film.title}
+            </span>
           </button>
           {isCentered && (
             <div
@@ -200,6 +229,7 @@ function WatchlistPageContent() {
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [copyHint, setCopyHint] = useState<string | null>(null)
+  const [demoSetup, setDemoSetup] = useState(false)
   const router = useRouter()
   const stripRef = useRef<HTMLDivElement>(null)
   const scrollTickingRef = useRef(false)
@@ -219,6 +249,26 @@ function WatchlistPageContent() {
     load()
     return () => {
       active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    setDemoSetup(isDemoSetupMode())
+  }, [])
+
+  useEffect(() => {
+    const reload = () => {
+      void (async () => {
+        const [films, seen] = await Promise.all([getWatchlist(), getWatched()])
+        setWatchlist(films)
+        setWatched(seen)
+      })()
+    }
+    window.addEventListener("fdfs:guest-data-changed", reload)
+    window.addEventListener(PULL_REFRESH_EVENT, reload)
+    return () => {
+      window.removeEventListener("fdfs:guest-data-changed", reload)
+      window.removeEventListener(PULL_REFRESH_EVENT, reload)
     }
   }, [])
 
@@ -249,10 +299,6 @@ function WatchlistPageContent() {
   )
   const displayWatchlist = filteredWatchlist
 
-  useEffect(() => {
-    setCenteredIndex(0)
-  }, [mediaTypeFilter])
-
   const pickPoolIndices = useMemo(() => {
     if (!selectedGenre) {
       return displayWatchlist.map((_, i) => i)
@@ -261,6 +307,33 @@ function WatchlistPageContent() {
       .map((film, i) => (filmHasGenre(film, selectedGenre) ? i : -1))
       .filter((i) => i >= 0)
   }, [displayWatchlist, selectedGenre])
+
+  const reelPositionLabel = useMemo(() => {
+    if (
+      !demoSetup &&
+      selectedGenre &&
+      pickPoolIndices.length > 0
+    ) {
+      const pos = pickPoolIndices.indexOf(centeredIndex)
+      const idx = pos >= 0 ? pos + 1 : 1
+      return `${idx} of ${pickPoolIndices.length} (${selectedGenre})`
+    }
+    return `${centeredIndex + 1} of ${displayWatchlist.length}`
+  }, [
+    demoSetup,
+    selectedGenre,
+    pickPoolIndices,
+    centeredIndex,
+    displayWatchlist.length,
+  ])
+
+  useEffect(() => {
+    setCenteredIndex(0)
+  }, [mediaTypeFilter])
+
+  useEffect(() => {
+    if (demoSetup) setSelectedGenre(null)
+  }, [demoSetup])
 
   const modalBottom = isMobile
     ? `calc(${MOBILE_TAB_BAR_INSET} + 16px)`
@@ -674,7 +747,7 @@ function WatchlistPageContent() {
               padding: "8px 16px 4px",
             }}
           >
-            {suggestedGenres.length > 0 && (
+            {suggestedGenres.length > 0 && !demoSetup && (
               <div
                 style={{
                   display: "flex",
@@ -724,11 +797,13 @@ function WatchlistPageContent() {
                 maxWidth: 420,
               }}
             >
-              {suggestedGenres.length > 0
-                ? "Genres from your recent watches — pick one, then spin the reel."
-                : "Rate a few films and we’ll suggest genres from what you’ve been watching."}
+              {demoSetup
+                ? "Demo setup — keep 5 titles here for publish. Add via search; don’t mark as watched (use Library for those)."
+                : suggestedGenres.length > 0
+                  ? "Genres from your recent watches — pick one, then spin the reel."
+                  : "Rate a few films and we’ll suggest genres from what you’ve been watching."}
             </p>
-            {selectedGenre != null && pickPoolIndices.length === 0 && (
+            {!demoSetup && selectedGenre != null && pickPoolIndices.length === 0 && (
               <p
                 className="t-caption"
                 style={{ margin: 0, color: "rgba(255,180,180,0.7)" }}
@@ -748,6 +823,7 @@ function WatchlistPageContent() {
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
+              overflow: "visible",
             }}
           >
             <SprocketRow />
@@ -764,8 +840,8 @@ function WatchlistPageContent() {
                 overflowY: "hidden",
                 paddingLeft: `calc(50vw - ${CARD_WIDTH / 2}px)`,
                 paddingRight: `calc(50vw - ${CARD_WIDTH / 2}px)`,
-                paddingTop: 24,
-                paddingBottom: 32,
+                paddingTop: 16,
+                paddingBottom: 24,
                 scrollBehavior: isSpinning ? "auto" : "smooth",
                 scrollSnapType: isSpinning ? "none" : "x mandatory",
                 scrollbarWidth: "none",
@@ -1033,7 +1109,7 @@ function WatchlistPageContent() {
               </button>
 
               <div className="t-label" style={{ color: "rgba(255,255,255,0.2)" }}>
-                {centeredIndex + 1} of {displayWatchlist.length}
+                {reelPositionLabel}
               </div>
               {!showRating && !showReviewStep && (
                 <p
@@ -1056,6 +1132,7 @@ function WatchlistPageContent() {
                     alignItems: "center",
                   }}
                 >
+                  {!demoSetup && (
                   <button
                     type="button"
                     onClick={(e) => {
@@ -1104,6 +1181,7 @@ function WatchlistPageContent() {
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                   </button>
+                  )}
 
                   <button
                     type="button"

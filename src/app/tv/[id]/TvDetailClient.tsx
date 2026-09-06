@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { supabase } from "@/lib/supabase/client"
 import { formatLanguage } from "@/lib/tmdb"
 import {
   addToWatchlistDetailed,
@@ -11,6 +10,8 @@ import {
   messageForMarkWatchedFailure,
   removeFromWatchlist,
   updateReview,
+  getWatched,
+  getWatchlist,
 } from "@/lib/db"
 import type { MediaItem } from "@/lib/types"
 import RatingDisplay from "@/components/RatingDisplay"
@@ -54,6 +55,20 @@ type WatchedRow = {
   rating?: number | string | null
   review_headline?: string | null
   review_body?: string | null
+}
+
+function mediaItemToWatchedRow(item: MediaItem): WatchedRow {
+  return {
+    id: item.id,
+    tmdb_id: item.id,
+    title: item.title,
+    poster: item.poster,
+    backdrop: item.backdrop ?? null,
+    watched_at: item.watchedAt ?? null,
+    rating: item.rating ?? null,
+    review_headline: item.reviewHeadline ?? null,
+    review_body: item.reviewBody ?? null,
+  }
 }
 
 type Props = {
@@ -165,29 +180,21 @@ export default function TvDetailClient({
     let active = true
     async function loadUserData() {
       setUserLoading(true)
-      const [{ data: wd }, { data: wl }] = await Promise.all([
-        supabase
-          .from("watched")
-          .select("*")
-          .eq("tmdb_id", tmdbId)
-          .eq("media_type", "tv")
-          .limit(1),
-        supabase
-          .from("watchlist")
-          .select("id")
-          .eq("tmdb_id", tmdbId)
-          .eq("media_type", "tv")
-          .limit(1),
-      ])
+      const [watched, watchlist] = await Promise.all([getWatched(), getWatchlist()])
       if (!active) return
-      const row = wd?.[0]
+      const row = watched.find((item) => item.id === tmdbId && item.mediaType === "tv")
       if (row) {
-        setDbRecord(row as WatchedRow)
-        setHeadline((row as WatchedRow).review_headline || "")
-        setBody((row as WatchedRow).review_body || "")
-        setRatingValue(ratingNumber((row as WatchedRow).rating))
+        const watchedRow = mediaItemToWatchedRow(row)
+        setDbRecord(watchedRow)
+        setHeadline(watchedRow.review_headline || "")
+        setBody(watchedRow.review_body || "")
+        setRatingValue(ratingNumber(watchedRow.rating))
+      } else {
+        setDbRecord(null)
       }
-      setIsWatchlisted(wl != null && wl.length > 0)
+      setIsWatchlisted(
+        watchlist.some((item) => item.id === tmdbId && item.mediaType === "tv"),
+      )
       setUserLoading(false)
     }
     loadUserData()
@@ -270,13 +277,9 @@ export default function TvDetailClient({
       setSavingRating(false)
       return
     }
-    const { data } = await supabase
-      .from("watched")
-      .select("*")
-      .eq("tmdb_id", tmdbId)
-      .eq("media_type", "tv")
-      .limit(1)
-    if (data?.[0]) setDbRecord(data[0] as WatchedRow)
+    const watched = await getWatched()
+    const row = watched.find((item) => item.id === tmdbId && item.mediaType === "tv")
+    if (row) setDbRecord(mediaItemToWatchedRow(row))
     setIsWatchlisted(false)
     setRatingOpen(false)
     setWatchedEarlier(false)

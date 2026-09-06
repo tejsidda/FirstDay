@@ -16,6 +16,7 @@ import {
 import { filterByMediaType, mediaDetailPath, resolveMediaType } from "@/lib/media"
 import { PULL_REFRESH_EVENT } from "@/lib/pullToRefresh"
 import { getRecommendations, refreshRecommendations } from "@/lib/recommend"
+import { isGuestMode } from "@/lib/guest-mode"
 import { MediaItem, Movie, type MediaTypeFilter, type Recommendation } from "@/lib/types"
 import { formatLanguage } from "@/lib/tmdb"
 import RatingDisplay from "@/components/RatingDisplay"
@@ -226,9 +227,14 @@ export default function HomeContent() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [recsLoading, setRecsLoading] = useState(false)
+  const [guestMode, setGuestMode] = useState(false)
   const router = useRouter()
   const recsHydratedRef = useRef(false)
   const watchlistRailRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setGuestMode(isGuestMode())
+  }, [])
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 768px)")
@@ -594,7 +600,7 @@ export default function HomeContent() {
           isMobile={isMobile}
           titleColor="var(--text-display)"
           action={
-            recommendations.length > 0 && !recsLoading ? (
+            recommendations.length > 0 && !recsLoading && !guestMode ? (
               <button
                 type="button"
                 onClick={() => handleRefreshRecommendations()}

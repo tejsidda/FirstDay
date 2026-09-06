@@ -1,5 +1,6 @@
 ﻿import { type NextRequest, NextResponse } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"
+import { GUEST_COOKIE_NAME, GUEST_COOKIE_VALUE } from "@/lib/guest-mode"
 
 const AUTH_PATHS = new Set(["/landing", "/auth/callback"])
 
@@ -23,12 +24,14 @@ function isProtectedPath(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { supabaseResponse, user } = await updateSession(request)
   const { pathname } = request.nextUrl
+  const isGuest =
+    request.cookies.get(GUEST_COOKIE_NAME)?.value === GUEST_COOKIE_VALUE
 
   if (user && AUTH_PATHS.has(pathname)) {
     return NextResponse.redirect(new URL("/home", request.url))
   }
 
-  if (!user && isProtectedPath(pathname)) {
+  if (!user && !isGuest && isProtectedPath(pathname)) {
     return NextResponse.redirect(new URL("/landing", request.url))
   }
 

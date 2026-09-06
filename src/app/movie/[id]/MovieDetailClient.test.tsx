@@ -93,6 +93,8 @@ vi.mock("@/lib/db", () => ({
   messageForMarkWatchedFailure: vi.fn(() => "Could not save rating"),
   removeFromWatchlist: vi.fn(),
   updateReview: vi.fn(),
+  getWatched: vi.fn(),
+  getWatchlist: vi.fn(),
 }))
 
 import MovieDetailClient from "./MovieDetailClient"
@@ -103,6 +105,8 @@ import {
   markAsWatchedDetailed,
   removeFromWatchlist,
   updateReview,
+  getWatched,
+  getWatchlist,
 } from "@/lib/db"
 
 function createSupabaseQuery(data: unknown) {
@@ -118,17 +122,42 @@ function mockUserState({
   watchlist = [],
 }: {
   watched?: Record<string, unknown> | null
-  watchlist?: { id: string }[]
+  watchlist?: { id: string; mediaType?: string }[]
 } = {}) {
-  mockFrom.mockImplementation((table: string) => {
-    if (table === "watched") {
-      return createSupabaseQuery(watched ? [watched] : [])
-    }
-    if (table === "watchlist") {
-      return createSupabaseQuery(watchlist)
-    }
-    return createSupabaseQuery([])
-  })
+  vi.mocked(getWatched).mockResolvedValue(
+    watched
+      ? [
+          {
+            id: String(watched.tmdb_id ?? "550"),
+            mediaType: "movie" as const,
+            title: String(watched.title ?? "Fight Club"),
+            year: Number(watched.year ?? 1999),
+            language: String(watched.language ?? "en"),
+            poster: String(watched.poster ?? "/poster.jpg"),
+            backdrop: watched.backdrop ? String(watched.backdrop) : undefined,
+            watchedAt: watched.watched_at ? String(watched.watched_at) : undefined,
+            rating:
+              watched.rating != null && watched.rating !== ""
+                ? Number(watched.rating)
+                : undefined,
+            reviewHeadline: watched.review_headline
+              ? String(watched.review_headline)
+              : undefined,
+            reviewBody: watched.review_body ? String(watched.review_body) : undefined,
+          },
+        ]
+      : [],
+  )
+  vi.mocked(getWatchlist).mockResolvedValue(
+    watchlist.map((item) => ({
+      id: item.id,
+      mediaType: (item.mediaType ?? "movie") as "movie" | "tv",
+      title: "Queued film",
+      year: 2020,
+      language: "en",
+      poster: "/poster.jpg",
+    })),
+  )
 }
 
 class MockIntersectionObserver {

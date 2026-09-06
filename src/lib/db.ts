@@ -2,6 +2,8 @@ import { supabase } from "./supabase/client"
 import { getMovieDetails, getTvDetails, type MovieGenre } from "./tmdb"
 import { resolveMediaType } from "./media"
 import { MediaItem, MediaType, Movie, type Recommendation } from "./types"
+import { isGuestMode } from "./guest-mode"
+import * as guestStore from "./guest-store"
 
 async function getCurrentUserId(): Promise<string | null> {
   const {
@@ -134,6 +136,7 @@ function rowToMediaItem(row: MediaRow): MediaItem {
 // ---- WATCHLIST ----
 
 export async function getWatchlist(): Promise<MediaItem[]> {
+  if (isGuestMode()) return guestStore.getWatchlist()
   const { data, error } = await supabase
     .from("watchlist")
     .select("*")
@@ -165,6 +168,7 @@ export function messageForAddToWatchlistFailure(
 export async function addToWatchlistDetailed(
   item: Movie | MediaItem,
 ): Promise<AddToWatchlistResult> {
+  if (isGuestMode()) return guestStore.addToWatchlistDetailed(item)
   const media = toMediaItem(item)
   const mediaType = media.mediaType
 
@@ -223,6 +227,7 @@ export async function removeFromWatchlist(
   tmdbId: string,
   mediaType: MediaType = "movie",
 ): Promise<boolean> {
+  if (isGuestMode()) return guestStore.removeFromWatchlist(tmdbId, mediaType)
   const { error } = await supabase
     .from("watchlist")
     .delete()
@@ -238,6 +243,7 @@ export async function removeFromWatchlist(
 // ---- WATCHED ----
 
 export async function getWatched(): Promise<MediaItem[]> {
+  if (isGuestMode()) return guestStore.getWatched()
   const { data, error } = await supabase
     .from("watched")
     .select("*")
@@ -269,6 +275,7 @@ export async function markAsWatchedDetailed(
   rating: number,
   options?: { reviewBody?: string; watchedAt?: string },
 ): Promise<MarkAsWatchedResult> {
+  if (isGuestMode()) return guestStore.markAsWatchedDetailed(item, rating, options)
   const media = toMediaItem(item)
   const mediaType = media.mediaType
   const reviewBody = options?.reviewBody?.trim()
@@ -381,6 +388,7 @@ export async function updateWatchedRating(
   rating: number,
   mediaType: MediaType = "movie",
 ): Promise<boolean> {
+  if (isGuestMode()) return guestStore.updateWatchedRating(tmdbId, rating, mediaType)
   const { error } = await supabase
     .from("watched")
     .update({ rating })
@@ -399,6 +407,7 @@ export async function updateReview(
   body?: string,
   mediaType: MediaType = "movie",
 ): Promise<boolean> {
+  if (isGuestMode()) return guestStore.updateReview(tmdbId, headline, body, mediaType)
   const { error } = await supabase
     .from("watched")
     .update({
@@ -447,6 +456,7 @@ function rowToRecommendation(row: {
 export async function getUnshownRecommendations(
   limit: number
 ): Promise<Recommendation[]> {
+  if (isGuestMode()) return guestStore.getUnshownRecommendations(limit)
   const { data, error } = await supabase
     .from("recommendations")
     .select("*")
@@ -461,6 +471,7 @@ export async function getUnshownRecommendations(
 }
 
 export async function markRecommendationShown(id: string): Promise<boolean> {
+  if (isGuestMode()) return guestStore.markRecommendationShown(id)
   const { error } = await supabase
     .from("recommendations")
     .update({ shown: true })
@@ -473,6 +484,7 @@ export async function markRecommendationShown(id: string): Promise<boolean> {
 }
 
 export async function getUnshownCount(): Promise<number> {
+  if (isGuestMode()) return guestStore.getUnshownCount()
   const { count, error } = await supabase
     .from("recommendations")
     .select("*", { count: "exact", head: true })
@@ -497,6 +509,7 @@ export type RecommendationInsert = {
 export async function clearAndInsertRecommendations(
   recommendations: RecommendationInsert[]
 ): Promise<boolean> {
+  if (isGuestMode()) return guestStore.clearAndInsertRecommendations(recommendations)
   const { error: delError } = await supabase
     .from("recommendations")
     .delete()
@@ -533,6 +546,7 @@ export async function clearAndInsertRecommendations(
 }
 
 export async function hasAnyRecommendations(): Promise<boolean> {
+  if (isGuestMode()) return guestStore.hasAnyRecommendations()
   const { data, error } = await supabase
     .from("recommendations")
     .select("id")

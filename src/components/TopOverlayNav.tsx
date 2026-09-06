@@ -9,6 +9,7 @@ import MobileTabBar from "@/components/MobileTabBar"
 import MediaTypeNavToggle from "@/components/MediaTypeNavToggle"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { showsMediaTypeNav } from "@/lib/mediaTypeNav"
+import { exitGuestMode, enterGuestMode, enterGuestSetupMode, isGuestMode } from "@/lib/guest-mode"
 
 const DESKTOP_LINKS = [
   {
@@ -58,9 +59,15 @@ export default function TopOverlayNav({
   const isMobile = useIsMobile()
   const [scrolled, setScrolled] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [guest, setGuest] = useState(false)
+  const [signedIn, setSignedIn] = useState(false)
 
   useEffect(() => {
     setMounted(true)
+    setGuest(isGuestMode())
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setSignedIn(Boolean(user))
+    })
     const onScroll = () => setScrolled(window.scrollY > 50)
     onScroll()
     window.addEventListener("scroll", onScroll, { passive: true })
@@ -84,7 +91,23 @@ export default function TopOverlayNav({
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
+    exitGuestMode()
     router.replace("/landing")
+  }
+
+  const handleGuestSignIn = () => {
+    exitGuestMode()
+    router.replace("/landing")
+  }
+
+  const handleExitDemoSetup = () => {
+    exitGuestMode()
+    window.location.href = "/home"
+  }
+
+  const handleSetupDemo = () => {
+    enterGuestSetupMode()
+    window.location.href = "/home"
   }
 
   const showBarBg = isMobile || scrolled
@@ -173,11 +196,26 @@ export default function TopOverlayNav({
               </button>
               <button
                 type="button"
-                onClick={handleSignOut}
+                onClick={
+                  guest
+                    ? signedIn
+                      ? handleExitDemoSetup
+                      : handleGuestSignIn
+                    : handleSignOut
+                }
                 className="text-[14px] font-normal tracking-wide text-[color:var(--text-secondary)] transition-colors duration-300 [transition-timing-function:var(--ease-productive)] hover:text-[color:var(--text-inverse)]"
               >
-                Sign out
+                {guest ? (signedIn ? "Exit setup" : "Sign in") : "Sign out"}
               </button>
+              {!guest && signedIn && (
+                <button
+                  type="button"
+                  onClick={handleSetupDemo}
+                  className="text-[14px] font-normal tracking-wide text-[color:var(--text-secondary)] transition-colors duration-300 [transition-timing-function:var(--ease-productive)] hover:text-[color:var(--text-inverse)]"
+                >
+                  Set up demo
+                </button>
+              )}
               {DESKTOP_LINKS.map((link) => (
                 <Link
                   key={link.href}

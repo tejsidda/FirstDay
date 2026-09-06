@@ -4,6 +4,7 @@ import {
   clearAndInsertRecommendations,
   type RecommendationInsert,
 } from "./db"
+import { isGuestMode } from "./guest-mode"
 
 const ANTHROPIC_PROXY = "/api/recommend"
 
@@ -58,6 +59,9 @@ export async function getRecommendations(
   watched: Movie[],
   watchlist: Movie[]
 ) {
+  if (isGuestMode()) {
+    return getUnshownRecommendations(DISPLAY_COUNT)
+  }
   if (watched.length < 3) return []
 
   let unshown = await getUnshownRecommendations(DISPLAY_COUNT)
@@ -85,6 +89,9 @@ export async function refreshRecommendations(
   watched: Movie[],
   watchlist: Movie[]
 ) {
+  if (isGuestMode()) {
+    return getUnshownRecommendations(DISPLAY_COUNT)
+  }
   if (watched.length < 3) return []
 
   const apiRecs = await fetchFromApi(watched, watchlist)

@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import LandingCinematicShell from "@/components/cinematic/LandingCinematicShell";
 import { supabase } from "@/lib/supabase/client";
+import { enterGuestMode, exitGuestMode, isGuestMode } from "@/lib/guest-mode";
 
 // ─── Phase flow: "intro" → (tap) → "login" → (valid sign in) → "success" → redirect to /home
 type Phase = "intro" | "login" | "success";
@@ -105,6 +106,7 @@ export default function LandingPage() {
   };
 
   const completeAuthSuccess = () => {
+    exitGuestMode();
     setShowToast(false);
     setLoginExiting(true);
 
@@ -237,6 +239,17 @@ export default function LandingPage() {
     completeAuthSuccess();
   };
 
+  const handleBrowseDemo = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    enterGuestMode();
+    router.push("/home");
+  };
+
+  const handleContinueDemo = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    router.push("/home");
+  };
+
   const showIntroContent = phase === "intro";
   const showLoginContent = phase === "login" || loginStarted || loginExiting;
 
@@ -271,6 +284,25 @@ export default function LandingPage() {
             <p className="mt-6 text-[14px] italic text-[rgba(255,255,255,0.3)]">
               Every film you loved. Every story you kept.
             </p>
+
+            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+              <button
+                type="button"
+                className="rounded-[8px] border border-[rgba(212,175,55,0.25)] bg-[rgba(212,175,55,0.08)] px-6 py-[11px] text-[12px] tracking-wide text-[rgba(212,175,55,0.75)] transition-all duration-300 ease-out hover:bg-[rgba(212,175,55,0.14)]"
+                onClick={handleBrowseDemo}
+              >
+                Browse demo
+              </button>
+              {isGuestMode() && (
+                <button
+                  type="button"
+                  className="rounded-[8px] border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] px-6 py-[11px] text-[12px] text-[rgba(255,255,255,0.4)] transition-all duration-300 ease-out hover:bg-[rgba(255,255,255,0.06)]"
+                  onClick={handleContinueDemo}
+                >
+                  Continue demo
+                </button>
+              )}
+            </div>
           </div>
 
           {/* "tap to begin": pulse is .intro-prompt in <style>; change bottom-12 to move it up/down. */}
@@ -413,6 +445,7 @@ export default function LandingPage() {
                             className="w-full rounded-[8px] border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.03)] px-4 py-[11px] text-[12px] text-[rgba(255,255,255,0.4)] transition-all duration-300 ease-out hover:bg-[rgba(255,255,255,0.06)]"
                             onClick={async (e) => {
                               e.stopPropagation();
+                              exitGuestMode();
                               await supabase.auth.signInWithOAuth({
                                 provider: "google",
                                 options: {
@@ -454,6 +487,16 @@ export default function LandingPage() {
                               </button>
                             </>
                           )}
+                        </div>
+
+                        <div className="mt-5 text-center">
+                          <button
+                            type="button"
+                            className="text-[11px] italic text-[rgba(255,255,255,0.25)] transition-colors duration-200 hover:text-[rgba(212,175,55,0.55)]"
+                            onClick={handleBrowseDemo}
+                          >
+                            Or browse the demo without signing in
+                          </button>
                         </div>
                       </form>
                     </div>
